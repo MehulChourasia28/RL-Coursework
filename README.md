@@ -36,6 +36,9 @@ The human-vs-AI setup is now ready for plugging in custom AI logic.
 		- `-1` white.
 - `RLCW2526.pdf`
 	- Coursework handout/specification.
+- `gomoku_config.py`
+	- Central game settings.
+	- Set `BOARD_SIZE` once to change board size across Gomoku modules.
 
 ### `practice/`
 
@@ -66,7 +69,7 @@ The human-vs-AI setup is now ready for plugging in custom AI logic.
 - `reset()` -> initial board state
 - `step(action)` -> `(next_state, reward, done, info)`
 
-`action` is a flattened index in `[0, 80]` for a 9x9 board.
+`action` is a flattened index in `[0, size*size - 1]`.
 
 Reward shaping currently implemented:
 
@@ -93,9 +96,23 @@ def predict(board_state):
 Conventions:
 
 - Return `(x, y)` where:
-	- `x` = column index (`0..8`)
-	- `y` = row index (`0..8`)
+	- `x` = column index (`0..size-1`)
+	- `y` = row index (`0..size-1`)
 - If your agent returns an invalid move, the runner falls back to a random legal move so the game can continue.
+
+### Board Size Configuration
+
+To change board size globally, edit this file:
+
+- `gomoku_config.py`
+
+Update:
+
+```python
+BOARD_SIZE = 9
+```
+
+All Gomoku entrypoints (`gameboard.py`, `gomoku_env.py`, `gomoku_human_vs_ai.py`) read this value by default.
 
 ## Setup
 

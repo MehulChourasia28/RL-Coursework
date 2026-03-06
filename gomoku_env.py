@@ -2,7 +2,7 @@
   This file is a standardised wrapper around the actual gomoku game made in the gameboard.py file.
   It is desinged to create the interface for the RL algorithm to work in.
   
-  During each episode, the agent selects actions (board positions 0-80) to place black stones; 
+    During each episode, the agent selects actions (board positions 0 to size*size-1) to place black stones; 
   the environment validates the move (if the move is invalid such as when it is placed ontop of an existing block then
   the game will end with a -10 reward, the idea is that the RL algorithm will learn to not do this)
   and checks for win, then immediately makes the opponent place a random white stone and checks for an opponent win. 
@@ -16,18 +16,19 @@
 import numpy as np
 import random
 from gameboard import GomokuLogic 
+from gomoku_config import BOARD_SIZE
 
 class GomokuEnv:
-    def __init__(self, size=9, render_mode=None):
+    def __init__(self, size=BOARD_SIZE, render_mode=None):
         self.size = size
         self.logic = GomokuLogic(size=size)
-        self.action_space_n = size * size  # 81 actions for 9x9
+        self.action_space_n = size * size
         self.observation_space_shape = (size, size)  # Board state shape
         self.render_mode = render_mode
         
         if self.render_mode == 'human':
             from gameboard import GomokuGame
-            self.ui = GomokuGame()
+            self.ui = GomokuGame(size=size)
         
     def reset(self):
         """Resets the board and returns the initial state."""
@@ -104,7 +105,7 @@ if __name__ == "__main__":
     
     # 1. Initialize Environment
     render_mode = 'human' if visualize else None
-    env = GomokuEnv(size=9, render_mode=render_mode)
+    env = GomokuEnv(size=BOARD_SIZE, render_mode=render_mode)
     
     print(f"\n--- Starting {num_episodes} Game(s) ---\n")
     
@@ -116,7 +117,7 @@ if __name__ == "__main__":
         
         while not done:
             # 2. Pick a random action (simulating an untrained agent)
-            action = np.random.randint(0, 81)
+            action = np.random.randint(0, env.action_space_n)
             
             # 3. Step the environment
             next_state, reward, done, info = env.step(action)

@@ -5,6 +5,7 @@ import numpy as np
 import pygame
 
 from gameboard import GomokuGame
+from gomoku_config import BOARD_SIZE
 
 
 def predict(board_state):
@@ -12,13 +13,13 @@ def predict(board_state):
     Your AI hook.
 
     Args:
-        board_state (np.ndarray): 9x9 board where
+        board_state (np.ndarray): board where
             0 = empty, 1 = black, -1 = white.
 
     Returns:
         tuple[int, int]: (x, y) move where
-            x = column index (0..8),
-            y = row index (0..8).
+            x = column index (0..size-1),
+            y = row index (0..size-1).
     """
     empty = np.argwhere(board_state == 0)
     if len(empty) == 0:
@@ -32,8 +33,8 @@ def predict(board_state):
 class GomokuHumanVsAI(GomokuGame):
     """Play Gomoku with a human against an AI defined by predict()."""
 
-    def __init__(self, human_player=1, ai_move_delay_ms=250):
-        super().__init__()
+    def __init__(self, human_player=1, ai_move_delay_ms=250, size=BOARD_SIZE):
+        super().__init__(size=size)
         if human_player not in (1, -1):
             raise ValueError("human_player must be 1 (black) or -1 (white)")
 
@@ -145,5 +146,5 @@ class GomokuHumanVsAI(GomokuGame):
 
 if __name__ == "__main__":
     # Change to -1 if you want to play White and let AI start as Black.
-    game = GomokuHumanVsAI(human_player=1, ai_move_delay_ms=250)
+    game = GomokuHumanVsAI(human_player=1, ai_move_delay_ms=250, size=BOARD_SIZE)
     game.run()

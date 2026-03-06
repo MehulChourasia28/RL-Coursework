@@ -2,10 +2,12 @@ import pygame
 import numpy as np
 import sys
 
+from gomoku_config import BOARD_SIZE, DEFAULT_CELL_SIZE, MAX_BOARD_PIXELS, MIN_CELL_SIZE
+
 
 # class for the logic of the board 
 class GomokuLogic:
-    def __init__(self, size=9):
+    def __init__(self, size=BOARD_SIZE):
         self.size = size
         self.board = np.zeros((size, size), dtype=int)
         self.game_over = False
@@ -51,7 +53,7 @@ class GomokuLogic:
     def check_win(self, row, col, player):
         """
         Checks 4 directions around the placed stone for 5-in-a-row.
-        Directions: Horizontal, Vertical, Diagonal (\), Anti-Diagonal (/)
+        Directions: Horizontal, Vertical, Diagonal (\\), Anti-Diagonal (/)
         """
         directions = [(0, 1), (1, 0), (1, 1), (1, -1)]
         
@@ -84,13 +86,19 @@ class GomokuLogic:
 # PART 2: THE UI (Visualisation)
 # ==========================================
 class GomokuGame:
-    def __init__(self):
+    def __init__(self, size=BOARD_SIZE):
         pygame.init()
-        self.BOARD_SIZE = 9
-        self.CELL_SIZE = 60
+        self.BOARD_SIZE = size
+
+        # Auto-scale the board so large sizes (for example 15x15) remain screen-friendly.
+        fit_cell_size = max(1, MAX_BOARD_PIXELS // self.BOARD_SIZE)
+        self.CELL_SIZE = max(MIN_CELL_SIZE, min(DEFAULT_CELL_SIZE, fit_cell_size))
         self.OFFSET = self.CELL_SIZE // 2
         self.WIDTH = self.CELL_SIZE * self.BOARD_SIZE
         self.HEIGHT = self.CELL_SIZE * self.BOARD_SIZE
+        self.GRID_LINE_WIDTH = max(1, self.CELL_SIZE // 25)
+        self.STONE_RADIUS = max(5, self.CELL_SIZE // 2 - 5)
+        self.HOVER_RING_WIDTH = max(1, self.CELL_SIZE // 20)
         self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT))
         pygame.display.set_caption(f"Gomoku {self.BOARD_SIZE}x{self.BOARD_SIZE}")
 
@@ -117,11 +125,11 @@ class GomokuGame:
             # Horizontal & Vertical Lines
             start_h = (self.OFFSET, self.OFFSET + i * self.CELL_SIZE)
             end_h = (self.WIDTH - self.OFFSET, self.OFFSET + i * self.CELL_SIZE)
-            pygame.draw.line(self.screen, self.LINE_COLOR, start_h, end_h, 2)
+            pygame.draw.line(self.screen, self.LINE_COLOR, start_h, end_h, self.GRID_LINE_WIDTH)
             
             start_v = (self.OFFSET + i * self.CELL_SIZE, self.OFFSET)
             end_v = (self.OFFSET + i * self.CELL_SIZE, self.HEIGHT - self.OFFSET)
-            pygame.draw.line(self.screen, self.LINE_COLOR, start_v, end_v, 2)
+            pygame.draw.line(self.screen, self.LINE_COLOR, start_v, end_v, self.GRID_LINE_WIDTH)
 
         # Draw Stones
         for r in range(self.BOARD_SIZE):
@@ -130,10 +138,10 @@ class GomokuGame:
                     x = self.OFFSET + c * self.CELL_SIZE
                     y = self.OFFSET + r * self.CELL_SIZE
                     color = self.BLACK if self.game.board[r][c] == 1 else self.WHITE
-                    pygame.draw.circle(self.screen, color, (x, y), self.CELL_SIZE // 2 - 5)
+                    pygame.draw.circle(self.screen, color, (x, y), self.STONE_RADIUS)
                     # Add a subtle rim to white stones so they pop
                     if self.game.board[r][c] == -1:
-                        pygame.draw.circle(self.screen, self.LINE_COLOR, (x, y), self.CELL_SIZE // 2 - 5, 1)
+                        pygame.draw.circle(self.screen, self.LINE_COLOR, (x, y), self.STONE_RADIUS, 1)
 
     def draw_game_over(self, winner):
         # 1. Semi-transparent overlay
@@ -142,7 +150,8 @@ class GomokuGame:
         self.screen.blit(overlay, (0, 0))
 
         # 2. Main Panel (Centered)
-        panel_w, panel_h = 400, 250
+        panel_w = max(260, min(400, int(self.WIDTH * 0.85)))
+        panel_h = max(170, min(250, int(self.HEIGHT * 0.55)))
         panel_x = (self.WIDTH - panel_w) // 2
         panel_y = (self.HEIGHT - panel_h) // 2
         
@@ -153,8 +162,10 @@ class GomokuGame:
         pygame.draw.rect(self.screen, self.LINE_COLOR, (panel_x, panel_y, panel_w, panel_h), 2, border_radius=12)
 
         # 3. Text
-        font_big = pygame.font.SysFont("Arial", 48, bold=True)
-        font_small = pygame.font.SysFont("Arial", 24)
+        font_big_size = max(24, min(48, panel_h // 4))
+        font_small_size = max(16, min(24, panel_h // 7))
+        font_big = pygame.font.SysFont("Arial", font_big_size, bold=True)
+        font_small = pygame.font.SysFont("Arial", font_small_size)
         
         if winner == 1:
             msg = "Black Wins!"
@@ -167,17 +178,19 @@ class GomokuGame:
             color = self.LINE_COLOR
 
         text_surf = font_big.render(msg, True, color)
-        text_rect = text_surf.get_rect(center=(self.WIDTH // 2, panel_y + 60))
+        text_rect = text_surf.get_rect(center=(self.WIDTH // 2, panel_y + int(panel_h * 0.28)))
         self.screen.blit(text_surf, text_rect)
 
         # 4. Buttons (Play Again / Quit)
         mouse_pos = pygame.mouse.get_pos()
         
         # Button Dimensions
-        btn_w, btn_h = 140, 50
-        btn_y = panel_y + 150
-        btn1_x = panel_x + 40
-        btn2_x = panel_x + panel_w - 40 - btn_w
+        btn_h = max(34, int(panel_h * 0.2))
+        btn_w = max(110, int(panel_w * 0.35))
+        side_margin = max(20, panel_w // 12)
+        btn_y = panel_y + panel_h - btn_h - max(16, panel_h // 12)
+        btn1_x = panel_x + side_margin
+        btn2_x = panel_x + panel_w - side_margin - btn_h
         
         # Define Rects
         restart_rect = pygame.Rect(btn1_x, btn_y, btn_w, btn_h)
@@ -217,7 +230,7 @@ class GomokuGame:
                     if self.game.board[row][col] == 0:
                         x = self.OFFSET + col * self.CELL_SIZE
                         y = self.OFFSET + row * self.CELL_SIZE
-                        pygame.draw.circle(self.screen, self.HOVER_COLOR, (x, y), self.CELL_SIZE // 2 - 5, 2)
+                        pygame.draw.circle(self.screen, self.HOVER_COLOR, (x, y), self.STONE_RADIUS, self.HOVER_RING_WIDTH)
 
             # --- GAME OVER SCREEN ---
             restart_btn = None
@@ -256,5 +269,5 @@ class GomokuGame:
         sys.exit()
 
 if __name__ == "__main__":
-    game = GomokuGame()
+    game = GomokuGame(size=BOARD_SIZE)
     game.run()
