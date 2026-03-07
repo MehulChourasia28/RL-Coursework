@@ -16,11 +16,14 @@ import torch.nn as nn
 import torch.optim as optim
 
 from gomoku_env import GomokuEnv
+from gomoku_config import BOARD_SIZE
 
 
 class DQN(nn.Module):
-    def __init__(self, board_size=9, action_dim=81):
+    def __init__(self, board_size=BOARD_SIZE, action_dim=None):
         super().__init__()
+        if action_dim is None:
+            action_dim = board_size * board_size
         input_dim = board_size * board_size
         self.net = nn.Sequential(
             nn.Linear(input_dim, 256),
@@ -68,7 +71,7 @@ def get_valid_actions(state):
 def select_action(policy_net, state, epsilon, device):
     valid_actions = get_valid_actions(state)
     if len(valid_actions) == 0:
-        return random.randrange(81)
+        return random.randrange(state.size)
 
     if random.random() < epsilon:
         return int(random.choice(valid_actions))
@@ -103,7 +106,7 @@ def compute_next_q_max(target_net, next_states, dones, device):
 
 def train_dqn(
     episodes=20000,
-    board_size=9,
+    board_size=BOARD_SIZE,
     gamma=0.99,
     lr=1e-3,
     batch_size=64,
