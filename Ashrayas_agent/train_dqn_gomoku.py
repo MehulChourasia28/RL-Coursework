@@ -1,6 +1,15 @@
 import random
 from collections import deque
 
+import sys
+from pathlib import Path
+
+# 1. Find the parent directory of the current file
+parent_dir = str(Path(__file__).resolve().parent.parent)
+
+# 2. Add that directory to Python's search path
+sys.path.insert(0, parent_dir)
+
 import numpy as np
 import torch
 import torch.nn as nn
