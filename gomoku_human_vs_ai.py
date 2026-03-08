@@ -1,11 +1,98 @@
 import random
 import sys
+from pathlib import Path
 
 import numpy as np
 import pygame
+import torch
 
 from gameboard import GomokuGame
 from gomoku_config import BOARD_SIZE
+from Ashrayas_agent.train_dqn_gomoku import DQN
+
+
+class LegacyDQN(torch.nn.Module):
+    """Backward-compatible MLP used by older checkpoints."""
+
+    def __init__(self, board_size=BOARD_SIZE, action_dim=None):
+        super().__init__()
+        if action_dim is None:
+            action_dim = board_size * board_size
+        input_dim = board_size * board_size
+        self.net = torch.nn.Sequential(
+            torch.nn.Linear(input_dim, 256),
+            torch.nn.ReLU(),
+            torch.nn.Linear(256, 256),
+            torch.nn.ReLU(),
+            torch.nn.Linear(256, action_dim),
+        )
+
+    def forward(self, x):
+        return self.net(x)
+
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+MODEL_DIR = Path(__file__).resolve().parent / "Ashrayas_agent"
+MODEL_PATHS = [
+    MODEL_DIR / "dqn_gomoku_best.pt",
+    MODEL_DIR / "dqn_gomoku.pt",
+]
+
+_model_bundle = None
+
+
+def _load_model_bundle():
+    for model_path in MODEL_PATHS:
+        if not model_path.exists():
+            continue
+
+        checkpoint = torch.load(model_path, map_location=DEVICE)
+        model_state_dict = checkpoint["model_state_dict"]
+        model_board_size = int(checkpoint.get("board_size", BOARD_SIZE))
+        action_dim = int(checkpoint.get("action_dim", model_board_size * model_board_size))
+        model_arch = checkpoint.get("model_arch", "auto")
+
+        if model_board_size != BOARD_SIZE:
+            raise ValueError(
+                f"Model board size {model_board_size} does not match configured BOARD_SIZE {BOARD_SIZE}. "
+                "Retrain the model for the current board size."
+            )
+
+        is_cnn_state = any(k.startswith("encoder.") or k.startswith("head.") for k in model_state_dict.keys())
+        is_mlp_state = any(k.startswith("net.") for k in model_state_dict.keys())
+
+        if model_arch == "cnn" or (model_arch == "auto" and is_cnn_state):
+            policy_net = DQN(board_size=model_board_size, action_dim=action_dim).to(DEVICE)
+            selected_arch = "cnn"
+        elif model_arch == "mlp" or (model_arch == "auto" and is_mlp_state):
+            policy_net = LegacyDQN(board_size=model_board_size, action_dim=action_dim).to(DEVICE)
+            selected_arch = "mlp"
+        else:
+            raise ValueError("Unsupported checkpoint format: could not infer model architecture.")
+
+        policy_net.load_state_dict(model_state_dict)
+        policy_net.eval()
+
+        return {
+            "policy": policy_net,
+            "board_size": model_board_size,
+            "action_dim": action_dim,
+            "path": str(model_path),
+            "model_arch": selected_arch,
+        }
+
+    return None
+
+
+try:
+    _model_bundle = _load_model_bundle()
+    if _model_bundle is not None:
+        print(f"Loaded DQN model from: {_model_bundle['path']}")
+    else:
+        print("Warning: no DQN checkpoint found. Falling back to random policy.")
+except Exception as exc:
+    print(f"Warning: could not load DQN model: {exc}")
+    _model_bundle = None
 
 
 def predict(board_state):
@@ -21,12 +108,29 @@ def predict(board_state):
             x = column index (0..size-1),
             y = row index (0..size-1).
     """
-    empty = np.argwhere(board_state == 0)
-    if len(empty) == 0:
+    flat = board_state.ravel()
+    valid_actions = np.flatnonzero(flat == 0)
+    if len(valid_actions) == 0:
         return -1, -1
 
-    # Baseline: random legal move.
-    row, col = random.choice(empty)
+    if _model_bundle is None:
+        row, col = random.choice(np.argwhere(board_state == 0))
+        return int(col), int(row)
+
+    with torch.no_grad():
+        board_size = board_state.shape[0]
+        if _model_bundle.get("model_arch") == "mlp":
+            state_t = torch.as_tensor(board_state, dtype=torch.float32, device=DEVICE).view(1, -1)
+        else:
+            state_t = torch.as_tensor(board_state, dtype=torch.float32, device=DEVICE).view(1, 1, board_size, board_size)
+
+        q_values = _model_bundle["policy"](state_t).squeeze(0)
+        valid_actions_t = torch.as_tensor(valid_actions, dtype=torch.long, device=DEVICE)
+        best_valid_idx = torch.argmax(q_values[valid_actions_t]).item()
+        action = int(valid_actions[best_valid_idx])
+
+    row = action // board_size
+    col = action % board_size
     return int(col), int(row)
 
 
@@ -55,6 +159,11 @@ class GomokuHumanVsAI(GomokuGame):
 
     def _safe_ai_move(self):
         board_copy = self.game.board.copy()
+
+        # The DQN is trained from Black's perspective (+1), so flip signs when AI is White.
+        if self.ai_player == -1:
+            board_copy = -board_copy
+
         try:
             x, y = predict(board_copy)
             row, col = int(y), int(x)

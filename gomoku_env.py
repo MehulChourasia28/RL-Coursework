@@ -25,6 +25,11 @@ class GomokuEnv:
         self.action_space_n = size * size
         self.observation_space_shape = (size, size)  # Board state shape
         self.render_mode = render_mode
+        self.step_penalty = -0.02
+        self.win_reward = 10.0
+        self.loss_reward = -10.0
+        self.draw_reward = 0.0
+        self.use_dense_shaping = True
         
         if self.render_mode == 'human':
             from gameboard import GomokuGame
@@ -57,10 +62,16 @@ class GomokuEnv:
         
         if self.logic.game_over:
             if msg == "Win":
-                reward = 10
+                reward = self.win_reward
             else:  # Draw
-                reward = 0
+                reward = self.draw_reward
             return self.logic.board.copy(), reward, True, {"result": msg}
+
+        dense_reward = 0.0
+        if self.use_dense_shaping:
+            # Encourage building longer contiguous lines.
+            agent_chain = self._max_chain_length(row, col, 1)
+            dense_reward += 0.15 * max(0, agent_chain - 1)
 
         # --- 2. OPPONENT MOVE (White / -1) ---
         empty_cells = list(zip(*np.where(self.logic.board == 0)))
@@ -72,14 +83,44 @@ class GomokuEnv:
 
         if self.logic.game_over:
             if msg == "Win":
-                reward = -10
+                reward = self.loss_reward
                 return self.logic.board.copy(), reward, True, {"result": "Loss"}
             else:
-                reward = 0
+                reward = self.draw_reward
                 return self.logic.board.copy(), reward, True, {"result": "Draw"}
 
+        if self.use_dense_shaping:
+            # Penalize allowing the opponent to build longer contiguous lines.
+            opp_chain = self._max_chain_length(opp_r, opp_c, -1)
+            dense_reward -= 0.12 * max(0, opp_chain - 1)
+
         # --- 3. GAME CONTINUES ---
-        return self.logic.board.copy(), -0.1, False, {}
+        return self.logic.board.copy(), self.step_penalty + dense_reward, False, {}
+
+    def _max_chain_length(self, row, col, player):
+        directions = [(0, 1), (1, 0), (1, 1), (1, -1)]
+        best = 1
+
+        for dr, dc in directions:
+            count = 1
+
+            for i in range(1, 5):
+                r, c = row + dr * i, col + dc * i
+                if 0 <= r < self.size and 0 <= c < self.size and self.logic.board[r][c] == player:
+                    count += 1
+                else:
+                    break
+
+            for i in range(1, 5):
+                r, c = row - dr * i, col - dc * i
+                if 0 <= r < self.size and 0 <= c < self.size and self.logic.board[r][c] == player:
+                    count += 1
+                else:
+                    break
+
+            best = max(best, count)
+
+        return best
 
     def render(self):
         """Updates the PyGame window to show the current board state."""

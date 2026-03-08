@@ -24,17 +24,25 @@ class DQN(nn.Module):
         super().__init__()
         if action_dim is None:
             action_dim = board_size * board_size
-        input_dim = board_size * board_size
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, 256),
+        self.board_size = board_size
+        self.encoder = nn.Sequential(
+            nn.Conv2d(1, 64, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.Linear(256, 256),
+            nn.Conv2d(64, 64, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.Linear(256, action_dim),
+            nn.Conv2d(64, 64, kernel_size=3, padding=1),
+            nn.ReLU(),
+        )
+        self.head = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(64 * board_size * board_size, 512),
+            nn.ReLU(),
+            nn.Linear(512, action_dim),
         )
 
     def forward(self, x):
-        return self.net(x)
+        x = self.encoder(x)
+        return self.head(x)
     
 
 
@@ -61,7 +69,8 @@ class ReplayBuffer:
 
 
 def state_to_tensor(state, device):
-    return torch.as_tensor(state, dtype=torch.float32, device=device).view(1, -1)
+    board_size = state.shape[0]
+    return torch.as_tensor(state, dtype=torch.float32, device=device).view(1, 1, board_size, board_size)
 
 
 def get_valid_actions(state):
@@ -87,13 +96,48 @@ def compute_next_q_max(target_net, next_states, dones, device):
     with torch.no_grad():
         next_q_values = target_net(next_states)
         # Mask invalid actions (occupied cells) and take the best valid action per sample.
-        valid_actions_mask = next_states.eq(0.0)
+        valid_actions_mask = next_states.squeeze(1).view(next_states.size(0), -1).eq(0.0)
         masked_next_q = next_q_values.masked_fill(~valid_actions_mask, float("-inf"))
         next_q_max = masked_next_q.max(dim=1).values
 
         no_valid_actions = ~valid_actions_mask.any(dim=1)
         next_q_max = torch.where(no_valid_actions, torch.zeros_like(next_q_max), next_q_max)
         return next_q_max * (1.0 - dones)
+
+
+def set_global_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+
+def evaluate_policy(policy_net, board_size, games, device):
+    env = GomokuEnv(size=board_size, render_mode=None)
+    wins = 0
+    draws = 0
+    losses = 0
+
+    for _ in range(games):
+        state = env.reset().astype(np.float32)
+        done = False
+        info = {}
+
+        while not done:
+            action = select_action(policy_net, state, epsilon=0.0, device=device)
+            next_state, _, done, info = env.step(action)
+            state = next_state.astype(np.float32)
+
+        result = info.get("result", "")
+        if result == "Win":
+            wins += 1
+        elif result == "Draw":
+            draws += 1
+        else:
+            losses += 1
+
+    return wins, draws, losses
 
 
 def train_dqn(
@@ -109,8 +153,13 @@ def train_dqn(
     epsilon_end=0.05,
     epsilon_decay_steps=300000,
     train_every=4,
+    eval_every_episodes=500,
+    eval_games=100,
+    seed=42,
     save_path="dqn_gomoku.pt",
+    best_save_path="dqn_gomoku_best.pt",
 ):
+    set_global_seed(seed)
     env = GomokuEnv(size=board_size, render_mode=None)
     action_dim = env.action_space_n
 
@@ -126,6 +175,7 @@ def train_dqn(
     loss_fn = nn.SmoothL1Loss()
     replay_buffer = ReplayBuffer(capacity=replay_capacity)
     min_replay_size = max(batch_size, warmup_steps)
+    best_eval_win_rate = -1.0
 
     global_step = 0
 
@@ -158,6 +208,9 @@ def train_dqn(
                 next_states_t = torch.tensor(next_states, dtype=torch.float32, device=device)
                 dones_t = torch.tensor(dones, dtype=torch.float32, device=device)
 
+                states_t = states_t.view(batch_size, 1, board_size, board_size)
+                next_states_t = next_states_t.view(batch_size, 1, board_size, board_size)
+
                 q_pred = policy_net(states_t).gather(1, actions_t.unsqueeze(1)).squeeze(1)
                 next_q_max = compute_next_q_max(target_net, next_states_t, dones_t, device)
                 q_target = rewards_t + gamma * next_q_max
@@ -179,15 +232,44 @@ def train_dqn(
                 f"Buffer: {len(replay_buffer)}"
             )
 
+        if episode % eval_every_episodes == 0:
+            wins, draws, losses = evaluate_policy(policy_net, board_size, eval_games, device)
+            win_rate = wins / max(1, eval_games)
+            print(
+                f"[Eval @ ep {episode}] W/D/L: {wins}/{draws}/{losses} "
+                f"| Win rate: {win_rate:.3f}"
+            )
+
+            if win_rate > best_eval_win_rate:
+                best_eval_win_rate = win_rate
+                torch.save(
+                    {
+                        "model_state_dict": policy_net.state_dict(),
+                        "model_arch": "cnn",
+                        "board_size": board_size,
+                        "action_dim": action_dim,
+                        "best_eval_win_rate": best_eval_win_rate,
+                        "episode": episode,
+                        "seed": seed,
+                    },
+                    best_save_path,
+                )
+                print(f"New best model saved to: {best_save_path}")
+
     torch.save(
         {
             "model_state_dict": policy_net.state_dict(),
+            "model_arch": "cnn",
             "board_size": board_size,
             "action_dim": action_dim,
+            "best_eval_win_rate": best_eval_win_rate,
+            "seed": seed,
         },
         save_path,
     )
-    print(f"Training complete. Model saved to: {save_path}")
+    print(f"Training complete. Latest model saved to: {save_path}")
+    if best_eval_win_rate >= 0.0:
+        print(f"Best eval win rate: {best_eval_win_rate:.3f} | Best model path: {best_save_path}")
 
 
 if __name__ == "__main__":
