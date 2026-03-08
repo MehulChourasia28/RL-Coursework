@@ -61,11 +61,11 @@ class ReplayBuffer:
 
 
 def state_to_tensor(state, device):
-    return torch.tensor(state, dtype=torch.float32, device=device).flatten().unsqueeze(0)
+    return torch.as_tensor(state, dtype=torch.float32, device=device).view(1, -1)
 
 
 def get_valid_actions(state):
-    return np.flatnonzero(state.flatten() == 0)
+    return np.flatnonzero(state.ravel() == 0)
 
 
 def select_action(policy_net, state, epsilon, device):
@@ -77,31 +77,23 @@ def select_action(policy_net, state, epsilon, device):
         return int(random.choice(valid_actions))
 
     with torch.no_grad():
-        q_values = policy_net(state_to_tensor(state, device)).squeeze(0).cpu().numpy()
-
-    masked_q = np.full_like(q_values, -1e9, dtype=np.float32)
-    masked_q[valid_actions] = q_values[valid_actions]
-    return int(np.argmax(masked_q))
+        q_values = policy_net(state_to_tensor(state, device)).squeeze(0)
+        valid_actions_t = torch.as_tensor(valid_actions, dtype=torch.long, device=device)
+        best_valid_idx = torch.argmax(q_values[valid_actions_t]).item()
+    return int(valid_actions[best_valid_idx])
 
 
 def compute_next_q_max(target_net, next_states, dones, device):
     with torch.no_grad():
         next_q_values = target_net(next_states)
+        # Mask invalid actions (occupied cells) and take the best valid action per sample.
+        valid_actions_mask = next_states.eq(0.0)
+        masked_next_q = next_q_values.masked_fill(~valid_actions_mask, float("-inf"))
+        next_q_max = masked_next_q.max(dim=1).values
 
-        max_values = []
-        next_states_np = next_states.detach().cpu().numpy()
-        for i in range(next_states_np.shape[0]):
-            if dones[i] >= 0.5:
-                max_values.append(0.0)
-                continue
-
-            valid_actions = np.flatnonzero(next_states_np[i] == 0)
-            if len(valid_actions) == 0:
-                max_values.append(0.0)
-            else:
-                max_values.append(torch.max(next_q_values[i, valid_actions]).item())
-
-        return torch.tensor(max_values, dtype=torch.float32, device=device)
+        no_valid_actions = ~valid_actions_mask.any(dim=1)
+        next_q_max = torch.where(no_valid_actions, torch.zeros_like(next_q_max), next_q_max)
+        return next_q_max * (1.0 - dones)
 
 
 def train_dqn(
@@ -116,6 +108,7 @@ def train_dqn(
     epsilon_start=1.0,
     epsilon_end=0.05,
     epsilon_decay_steps=300000,
+    train_every=4,
     save_path="dqn_gomoku.pt",
 ):
     env = GomokuEnv(size=board_size, render_mode=None)
@@ -132,6 +125,7 @@ def train_dqn(
     # Huber loss is typically more stable than MSE for temporal-difference targets.
     loss_fn = nn.SmoothL1Loss()
     replay_buffer = ReplayBuffer(capacity=replay_capacity)
+    min_replay_size = max(batch_size, warmup_steps)
 
     global_step = 0
 
@@ -155,7 +149,7 @@ def train_dqn(
             episode_reward += reward
             global_step += 1
 
-            if len(replay_buffer) >= max(batch_size, warmup_steps):
+            if len(replay_buffer) >= min_replay_size and global_step % train_every == 0:
                 states, actions, rewards, next_states, dones = replay_buffer.sample(batch_size)
 
                 states_t = torch.tensor(states, dtype=torch.float32, device=device)
@@ -166,7 +160,7 @@ def train_dqn(
 
                 q_pred = policy_net(states_t).gather(1, actions_t.unsqueeze(1)).squeeze(1)
                 next_q_max = compute_next_q_max(target_net, next_states_t, dones_t, device)
-                q_target = rewards_t + gamma * (1.0 - dones_t) * next_q_max
+                q_target = rewards_t + gamma * next_q_max
 
                 loss = loss_fn(q_pred, q_target)
                 optimizer.zero_grad()

@@ -17,7 +17,6 @@ class GomokuLogic:
         self.board = np.zeros((self.size, self.size), dtype=int)
         self.game_over = False
         self.winner = 0
-
     def is_valid_move(self, row, col):
         # Check boundaries and if cell is empty
         return 0 <= row < self.size and 0 <= col < self.size and self.board[row][col] == 0
