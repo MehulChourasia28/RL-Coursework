@@ -105,17 +105,17 @@ def compute_next_q_max(target_net, next_states, dones, device):
 
 
 def train_dqn(
-    episodes=20000,
+    episodes=50000,
     board_size=BOARD_SIZE,
     gamma=0.99,
-    lr=1e-3,
-    batch_size=64,
-    replay_capacity=100_000,
-    warmup_steps=500,
-    target_update_every=500,
+    lr=2.5e-4,
+    batch_size=128,
+    replay_capacity=300_000,
+    warmup_steps=5000,
+    target_update_every=1000,
     epsilon_start=1.0,
     epsilon_end=0.05,
-    epsilon_decay_steps=8000,
+    epsilon_decay_steps=300000,
     save_path="dqn_gomoku.pt",
 ):
     env = GomokuEnv(size=board_size, render_mode=None)
@@ -129,7 +129,8 @@ def train_dqn(
     target_net.eval()
 
     optimizer = optim.Adam(policy_net.parameters(), lr=lr)
-    loss_fn = nn.MSELoss()
+    # Huber loss is typically more stable than MSE for temporal-difference targets.
+    loss_fn = nn.SmoothL1Loss()
     replay_buffer = ReplayBuffer(capacity=replay_capacity)
 
     global_step = 0
@@ -170,6 +171,7 @@ def train_dqn(
                 loss = loss_fn(q_pred, q_target)
                 optimizer.zero_grad()
                 loss.backward()
+                nn.utils.clip_grad_norm_(policy_net.parameters(), max_norm=10.0)
                 optimizer.step()
 
                 if global_step % target_update_every == 0:
