@@ -192,14 +192,14 @@ def train_self_play(
     replay_capacity=300_000,
     warmup_steps=8_000,
     target_update_every=1_000,
-    epsilon_start=0.25,
-    epsilon_end=0.02,
+    epsilon_start=0.7,
+    epsilon_end=0.1,
     epsilon_decay_steps=250_000,
     train_every=4,
     step_penalty=-0.02,
     seed=42,
     init_checkpoint="Ashrayas_agent/dqn_gomoku.pt",
-    save_path="Ashrayas_agent/dqn_gomoku_selfplay.pt",
+    save_path="Ashrayas_agent/dqn_gomoku_selfplay2.pt",
 ):
     set_global_seed(seed)
 

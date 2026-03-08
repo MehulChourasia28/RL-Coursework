@@ -55,9 +55,9 @@ def choose_action_from_state(policy_net, board_state, device):
 
 def load_checkpoint(device):
     candidates = [
-        Path(__file__).resolve().parent / "Ashrayas_agent" / "dqn_gomoku_best.pt",
+        Path(__file__).resolve().parent / "Ashrayas_agent" / "dqn_gomoku_selfplay.pt",
         Path(__file__).resolve().parent / "Ashrayas_agent" / "dqn_gomoku.pt",
-        Path(__file__).resolve().parent / "dqn_gomoku_best.pt",
+        Path(__file__).resolve().parent / "dqn_gomoku_selfplay.pt",
         Path(__file__).resolve().parent / "dqn_gomoku.pt",
     ]
 
