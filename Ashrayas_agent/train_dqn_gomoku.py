@@ -141,7 +141,7 @@ def evaluate_policy(policy_net, board_size, games, device):
 
 
 def train_dqn(
-    episodes=50000,
+    episodes=20000,
     board_size=BOARD_SIZE,
     gamma=0.99,
     lr=2.5e-4,
@@ -151,7 +151,7 @@ def train_dqn(
     target_update_every=1000,
     epsilon_start=1.0,
     epsilon_end=0.12,
-    epsilon_decay_steps=1500000,
+    epsilon_decay_steps=750000,
     train_every=4,
     eval_every_episodes=500,
     eval_games=100,
