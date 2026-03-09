@@ -92,13 +92,17 @@ def select_action(policy_net, state, epsilon, device):
     return int(valid_actions[best_valid_idx])
 
 
-def compute_next_q_max(target_net, next_states, dones, device):
+def compute_next_q_max_double_dqn(policy_net, target_net, next_states, dones):
     with torch.no_grad():
-        next_q_values = target_net(next_states)
-        # Mask invalid actions (occupied cells) and take the best valid action per sample.
+        # Mask invalid actions (occupied cells) before choosing the next action.
         valid_actions_mask = next_states.squeeze(1).view(next_states.size(0), -1).eq(0.0)
-        masked_next_q = next_q_values.masked_fill(~valid_actions_mask, float("-inf"))
-        next_q_max = masked_next_q.max(dim=1).values
+
+        policy_next_q = policy_net(next_states)
+        masked_policy_next_q = policy_next_q.masked_fill(~valid_actions_mask, float("-inf"))
+        next_actions = masked_policy_next_q.argmax(dim=1)
+
+        target_next_q = target_net(next_states)
+        next_q_max = target_next_q.gather(1, next_actions.unsqueeze(1)).squeeze(1)
 
         no_valid_actions = ~valid_actions_mask.any(dim=1)
         next_q_max = torch.where(no_valid_actions, torch.zeros_like(next_q_max), next_q_max)
@@ -144,17 +148,17 @@ def train_dqn(
     episodes=20000,
     board_size=BOARD_SIZE,
     gamma=0.99,
-    lr=2.5e-4,
+    lr=1e-4,
     batch_size=128,
-    replay_capacity=300_000,
-    warmup_steps=5000,
-    target_update_every=1000,
+    replay_capacity=500_000,
+    warmup_steps=10000,
+    target_update_every=2000,
     epsilon_start=1.0,
-    epsilon_end=0.12,
-    epsilon_decay_steps=750000,
+    epsilon_end=0.06,
+    epsilon_decay_steps=450000,
     train_every=4,
     eval_every_episodes=500,
-    eval_games=100,
+    eval_games=200,
     seed=42,
     save_path="dqn_gomoku.pt",
     best_save_path="dqn_gomoku_best.pt",
@@ -212,7 +216,7 @@ def train_dqn(
                 next_states_t = next_states_t.view(batch_size, 1, board_size, board_size)
 
                 q_pred = policy_net(states_t).gather(1, actions_t.unsqueeze(1)).squeeze(1)
-                next_q_max = compute_next_q_max(target_net, next_states_t, dones_t, device)
+                next_q_max = compute_next_q_max_double_dqn(policy_net, target_net, next_states_t, dones_t)
                 q_target = rewards_t + gamma * next_q_max
 
                 loss = loss_fn(q_pred, q_target)

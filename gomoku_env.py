@@ -29,7 +29,7 @@ class GomokuEnv:
         self.win_reward = 10.0
         self.loss_reward = -10.0
         self.draw_reward = 0.0
-        self.use_dense_shaping = True
+        self.use_dense_shaping = False
         
         if self.render_mode == 'human':
             from gameboard import GomokuGame
