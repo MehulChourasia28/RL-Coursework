@@ -1,5 +1,12 @@
 from datasets import load_dataset
 import numpy as np
+from pathlib import Path
+import sys
+
+parent_dir = str(Path(__file__).resolve().parent.parent)
+sys.path.insert(0, parent_dir)
+
+from gomoku_config import BOARD_SIZE
 
 print("Loading complete_games.json...")
 dataset = load_dataset("json", data_files="https://huggingface.co/datasets/Karesis/Gomoku/resolve/main/gomoku_dataset_split/train/sequence/complete_games.json", split="train")
@@ -21,7 +28,7 @@ for row_data in dataset:
         continue
         
     # 2. Start with an empty board for this game
-    board = np.zeros((15, 15), dtype=np.int8) 
+    board = np.zeros((BOARD_SIZE, BOARD_SIZE), dtype=np.int8)
     
     # 3. Play through the game turn-by-turn
     # We stop 1 move before the end, because the last move is a target, not a state
@@ -31,12 +38,17 @@ for row_data in dataset:
         current_move = move_sequence[step]
         player = 1 if current_move > 0 else 2
         pos = abs(current_move)
-        row, col = divmod(pos, 15)
+        row, col = divmod(pos, BOARD_SIZE)
+        if not (0 <= row < BOARD_SIZE and 0 <= col < BOARD_SIZE):
+            break
         board[row, col] = player
         
         # The target is whatever move happens NEXT
         target_move = move_sequence[step + 1]
         target_pos = abs(target_move)
+        tr, tc = divmod(target_pos, BOARD_SIZE)
+        if not (0 <= tr < BOARD_SIZE and 0 <= tc < BOARD_SIZE):
+            break
         
         # Save a COPY of the board state and the target
         # (Using np.copy is crucial here so we don't overwrite previous states)

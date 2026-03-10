@@ -89,7 +89,7 @@ class GomokuGame:
         pygame.init()
         self.BOARD_SIZE = size
 
-        # Auto-scale the board so large sizes (for example 15x15) remain screen-friendly.
+        # Auto-scale the board so larger sizes remain screen-friendly.
         fit_cell_size = max(1, MAX_BOARD_PIXELS // self.BOARD_SIZE)
         self.CELL_SIZE = max(MIN_CELL_SIZE, min(DEFAULT_CELL_SIZE, fit_cell_size))
         self.OFFSET = self.CELL_SIZE // 2
