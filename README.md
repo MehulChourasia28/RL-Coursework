@@ -2,6 +2,21 @@
 
 This repository contains coursework exercises and experiments for reinforcement learning, plus a custom Gomoku environment and UI.
 
+## Strong Gomoku Agent
+
+There is now a practical RL-based Gomoku agent under `Mehuls_agent/`.
+
+It is designed for a 15x15 board and uses:
+
+- a policy-value CNN,
+- lightweight tree search,
+- heuristic bootstrapping,
+- self-play training,
+- checkpointed inference for the PyGame UI.
+
+The human-vs-AI runner in `gomoku_human_vs_ai.py` now uses this agent automatically.
+If no trained checkpoint is available yet, it falls back to the built-in tactical heuristic instead of random play.
+
 ## Current Project State
 
 The project currently has two main tracks:
@@ -51,6 +66,25 @@ The human-vs-AI setup is now ready for plugging in custom AI logic.
 - `tictactoe.ipynb`
 - `test.ipynb`
 
+### `Mehuls_agent/`
+
+- `config.py`
+	- runtime, network, search, and training configuration.
+- `state.py`
+	- canonical self-play game state wrapper around Gomoku rules.
+- `encoding.py`
+	- network input encoding and symmetry augmentation.
+- `heuristics.py`
+	- tactical move scoring and fallback policy.
+- `model.py`
+	- residual policy-value network.
+- `mcts.py`
+	- lightweight PUCT search.
+- `train_gomoku_agent.py`
+	- self-play training entrypoint.
+- `inference.py`
+	- checkpoint loading and move selection for the UI.
+
 ## Gomoku Components
 
 ### 1) Core Rules (`gameboard.py`)
@@ -85,13 +119,7 @@ Opponent policy is currently random.
 
 This is the easiest entrypoint for custom play logic.
 
-Edit:
-
-```python
-def predict(board_state):
-		# return (x, y)
-		...
-```
+It now routes moves through `Mehuls_agent.inference`.
 
 Conventions:
 
@@ -118,10 +146,30 @@ All Gomoku entrypoints (`gameboard.py`, `gomoku_env.py`, `gomoku_human_vs_ai.py`
 
 Python 3.9+ is recommended.
 
-Install dependencies:
+Create the project virtual environment:
 
 ```bash
-pip install numpy pygame
+python3 -m venv .venv
+```
+
+Install base dependencies:
+
+```bash
+.venv/bin/python -m pip install --upgrade pip setuptools wheel
+.venv/bin/python -m pip install numpy pygame tqdm tensorboard
+```
+
+For the GB10 GPU used in this workspace, the stable CUDA 12.4 PyTorch wheel was not sufficient.
+Use a newer CUDA 12.8 nightly build:
+
+```bash
+.venv/bin/python -m pip install --pre --upgrade torch --index-url https://download.pytorch.org/whl/nightly/cu128
+```
+
+You can verify CUDA is working with:
+
+```bash
+.venv/bin/python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0))"
 ```
 
 ## How To Run
@@ -129,15 +177,35 @@ pip install numpy pygame
 ### Run Human vs AI
 
 ```bash
-python gomoku_human_vs_ai.py
+.venv/bin/python gomoku_human_vs_ai.py
 ```
 
 By default, human plays Black (`human_player=1`).
 
+The UI uses the best checkpoint at:
+
+```bash
+Mehuls_agent/checkpoints/gomoku_policy_value.pt
+```
+
+If that file does not exist yet, the UI falls back to a tactical heuristic agent.
+
+### Train the Gomoku Agent
+
+```bash
+.venv/bin/python Mehuls_agent/train_gomoku_agent.py --device cuda --checkpoint Mehuls_agent/checkpoints/gomoku_policy_value.pt
+```
+
+Useful smaller smoke run:
+
+```bash
+.venv/bin/python Mehuls_agent/train_gomoku_agent.py --device cuda --iterations 1 --bootstrap-games 2 --self-play-games 1 --evaluation-games 2 --batch-size 8 --batches-per-iteration 2 --checkpoint Mehuls_agent/checkpoints/smoke_gomoku_policy_value.pt
+```
+
 ### Run RL Environment Demo
 
 ```bash
-python gomoku_env.py
+.venv/bin/python gomoku_env.py
 ```
 
 This runs multiple episodes with random actions and optional visualization.
@@ -145,20 +213,21 @@ This runs multiple episodes with random actions and optional visualization.
 ### Run Standalone Gomoku UI
 
 ```bash
-python gameboard.py
+.venv/bin/python gameboard.py
 ```
 
 This launches the two-player local PyGame interface.
 
 ## Notes and Limitations
 
-- No trained Gomoku model is committed yet; current AI baseline is random unless you replace `predict`.
-- Opponent in `gomoku_env.py` is random, which is fine for initial experimentation but limited for stronger training.
+- `gomoku_env.py` still uses a random opponent and is not the main training path for the strong agent.
+- The practical training path is `Mehuls_agent/train_gomoku_agent.py`.
+- A short smoke checkpoint can be produced quickly, but a stronger model still needs a longer CUDA training run.
 - There is no formal test suite in the repository yet.
 
 ## Suggested Next Steps
 
-1. Implement a stronger heuristic in `predict(board_state)` (win/block-first).
-2. Add a training script that learns a policy from `GomokuEnv`.
-3. Save/load model weights and connect them to `predict`.
-4. Add minimal tests for move validity, win detection, and reward logic.
+1. Run a longer CUDA training job to populate `Mehuls_agent/checkpoints/gomoku_policy_value.pt`.
+2. Evaluate the trained checkpoint against the tactical heuristic and human play.
+3. Tune search simulations and training iterations once the first longer run completes.
+4. Add fixed tactical regression positions for forced win and forced block cases.

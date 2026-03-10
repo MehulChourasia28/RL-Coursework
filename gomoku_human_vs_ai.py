@@ -4,30 +4,26 @@ import sys
 import numpy as np
 import pygame
 
+from Mehuls_agent.inference import predict_move
 from gameboard import GomokuGame
 from gomoku_config import BOARD_SIZE
 
 
-def predict(board_state):
+def predict(board_state, player=-1):
     """
-    Your AI hook.
+    AI move hook backed by Mehuls_agent.
 
     Args:
         board_state (np.ndarray): board where
             0 = empty, 1 = black, -1 = white.
+        player (int): side to move for the AI.
 
     Returns:
         tuple[int, int]: (x, y) move where
             x = column index (0..size-1),
             y = row index (0..size-1).
     """
-    empty = np.argwhere(board_state == 0)
-    if len(empty) == 0:
-        return -1, -1
-
-    # Baseline: random legal move.
-    row, col = random.choice(empty)
-    return int(col), int(row)
+    return predict_move(board_state, player)
 
 
 class GomokuHumanVsAI(GomokuGame):
@@ -56,7 +52,7 @@ class GomokuHumanVsAI(GomokuGame):
     def _safe_ai_move(self):
         board_copy = self.game.board.copy()
         try:
-            x, y = predict(board_copy)
+            x, y = predict(board_copy, self.ai_player)
             row, col = int(y), int(x)
         except Exception as exc:
             print(f"AI predict() raised an exception: {exc}")
