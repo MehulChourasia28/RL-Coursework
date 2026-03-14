@@ -244,12 +244,17 @@ def augment_batch_symmetry(states, actions, next_states, next_boards, board_size
         actions[i] = transform_action_index(actions[i], sym, board_size)
 
 
-def compute_next_q_max(target_net, next_states, next_boards, dones):
+def compute_next_q_max(policy_net, target_net, next_states, next_boards, dones):
     with torch.no_grad():
-        next_q_values = target_net(next_states)
         valid_actions_mask = next_boards.view(next_boards.size(0), -1).eq(0.0)
-        masked_next_q = next_q_values.masked_fill(~valid_actions_mask, float("-inf"))
-        next_q_max = masked_next_q.max(dim=1).values
+
+        # Double DQN: action selection by policy net, evaluation by target net.
+        next_q_policy = policy_net(next_states)
+        masked_next_q_policy = next_q_policy.masked_fill(~valid_actions_mask, float("-inf"))
+        next_actions = masked_next_q_policy.argmax(dim=1, keepdim=True)
+
+        next_q_target = target_net(next_states)
+        next_q_max = next_q_target.gather(1, next_actions).squeeze(1)
 
         no_valid_actions = ~valid_actions_mask.any(dim=1)
         next_q_max = torch.where(no_valid_actions, torch.zeros_like(next_q_max), next_q_max)
@@ -381,7 +386,7 @@ def play_policy_turn(policy_net, logic, player, last_move, epsilon, device, mode
     if not success:
         return action, -10.0, True, {"result": "Invalid"}
 
-    dense_reward = 0.15 * max(0, _max_chain_length(logic.board, row, col, player) - 1)
+    dense_reward = 0.04 * max(0, _max_chain_length(logic.board, row, col, player) - 1)
     if msg == "Win":
         return action, 10.0, True, {"result": "Win", "dense_reward": dense_reward}
     if msg == "Draw":
@@ -473,7 +478,7 @@ def run_self_play_episode(
                 opponent_chain_penalty = 0.0
             else:
                 row, col = divmod(opponent_action, board_size)
-                opponent_chain_penalty = 0.12 * max(0, _max_chain_length(logic.board, row, col, opponent_player) - 1)
+                opponent_chain_penalty = 0.04 * max(0, _max_chain_length(logic.board, row, col, opponent_player) - 1)
             reward = step_penalty + own_reward - opponent_chain_penalty
             done = False
 
@@ -534,16 +539,16 @@ def train_self_play(
     episodes=15_000,
     board_size=BOARD_SIZE,
     gamma=0.99,
-    lr=2.5e-4,
+    lr=1e-4,
     batch_size=128,
     replay_capacity=100_000,
     warmup_steps=5_000,
     target_update_every=1_000,
-    epsilon_start=1.0,
-    epsilon_end=0.12,
-    epsilon_decay_steps=450_000,
+    epsilon_start=0.2,
+    epsilon_end=0.03,
+    epsilon_decay_steps=120_000,
     train_every=4,
-    step_penalty=-0.02,
+    step_penalty=-0.005,
     use_symmetry_augmentation=True,
     opponent_current_prob=0.4,
     opponent_pool_prob=0.4,
@@ -553,7 +558,7 @@ def train_self_play(
     eval_every_episodes=500,
     eval_games=100,
     seed=42,
-    init_checkpoint="dqn_gomoku.pt",
+    init_checkpoint="dqn_gomoku_best.pt",
     model_arch="auto",
     save_path="Ashrayas_agent/dqn_gomoku_selfplay.pt",
     best_save_path="Ashrayas_agent/dqn_gomoku_selfplay_best.pt",
@@ -653,7 +658,7 @@ def train_self_play(
                 next_states_t = next_states_t.view(batch_size, channels, board_size, board_size)
 
                 q_pred = policy_net(states_t).gather(1, actions_t.unsqueeze(1)).squeeze(1)
-                next_q_max = compute_next_q_max(target_net, next_states_t, next_boards_t, dones_t)
+                next_q_max = compute_next_q_max(policy_net, target_net, next_states_t, next_boards_t, dones_t)
                 q_target = rewards_t + gamma * next_q_max
 
                 loss = loss_fn(q_pred, q_target)
@@ -740,16 +745,16 @@ def parse_args():
     parser.add_argument("--episodes", type=int, default=15_000)
     parser.add_argument("--board-size", type=int, default=BOARD_SIZE)
     parser.add_argument("--gamma", type=float, default=0.99)
-    parser.add_argument("--lr", type=float, default=2.5e-4)
+    parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--replay-capacity", type=int, default=100_000)
     parser.add_argument("--warmup-steps", type=int, default=5_000)
     parser.add_argument("--target-update-every", type=int, default=1_000)
-    parser.add_argument("--epsilon-start", type=float, default=1.0)
-    parser.add_argument("--epsilon-end", type=float, default=0.12)
-    parser.add_argument("--epsilon-decay-steps", type=int, default=450_000)
+    parser.add_argument("--epsilon-start", type=float, default=0.2)
+    parser.add_argument("--epsilon-end", type=float, default=0.03)
+    parser.add_argument("--epsilon-decay-steps", type=int, default=120_000)
     parser.add_argument("--train-every", type=int, default=4)
-    parser.add_argument("--step-penalty", type=float, default=-0.02)
+    parser.add_argument("--step-penalty", type=float, default=-0.005)
     parser.add_argument(
         "--opponent-current-prob",
         type=float,
@@ -786,8 +791,8 @@ def parse_args():
     parser.add_argument(
         "--init-checkpoint",
         type=str,
-        default="dqn_gomoku.pt",
-        help="Checkpoint to initialize from. Defaults to the existing trained agent in the project root.",
+        default="dqn_gomoku_best.pt",
+        help="Checkpoint to initialize from. Defaults to the best random-agent checkpoint in the project root.",
     )
     parser.add_argument(
         "--model-arch",
