@@ -92,13 +92,17 @@ def select_action(policy_net, state, epsilon, device):
     return int(valid_actions[best_valid_idx])
 
 
-def compute_next_q_max(target_net, next_states, dones, device):
+def compute_next_q_max(policy_net, target_net, next_states, dones):
     with torch.no_grad():
-        next_q_values = target_net(next_states)
-        # Mask invalid actions (occupied cells) and take the best valid action per sample.
         valid_actions_mask = next_states.squeeze(1).view(next_states.size(0), -1).eq(0.0)
-        masked_next_q = next_q_values.masked_fill(~valid_actions_mask, float("-inf"))
-        next_q_max = masked_next_q.max(dim=1).values
+
+        # Double DQN: select actions with policy_net, evaluate them with target_net.
+        next_q_policy = policy_net(next_states)
+        masked_next_q_policy = next_q_policy.masked_fill(~valid_actions_mask, float("-inf"))
+        next_actions = masked_next_q_policy.argmax(dim=1, keepdim=True)
+
+        next_q_target = target_net(next_states)
+        next_q_max = next_q_target.gather(1, next_actions).squeeze(1)
 
         no_valid_actions = ~valid_actions_mask.any(dim=1)
         next_q_max = torch.where(no_valid_actions, torch.zeros_like(next_q_max), next_q_max)
@@ -111,6 +115,57 @@ def set_global_seed(seed):
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
+
+
+def _apply_symmetry_to_flat_board(flat_board, sym, board_size):
+    board = flat_board.reshape(board_size, board_size)
+    if sym == 0:
+        return flat_board
+    if sym == 1:
+        return np.rot90(board, 1).flatten()
+    if sym == 2:
+        return np.rot90(board, 2).flatten()
+    if sym == 3:
+        return np.rot90(board, 3).flatten()
+    if sym == 4:
+        return np.fliplr(board).flatten()
+    if sym == 5:
+        return np.flipud(board).flatten()
+    if sym == 6:
+        return board.T.copy().flatten()
+    # sym == 7
+    return np.flipud(np.fliplr(board.T)).flatten()
+
+
+def _transform_action_index(action_idx, sym, board_size):
+    row, col = divmod(int(action_idx), board_size)
+    if sym == 0:
+        nr, nc = row, col
+    elif sym == 1:
+        nr, nc = board_size - 1 - col, row
+    elif sym == 2:
+        nr, nc = board_size - 1 - row, board_size - 1 - col
+    elif sym == 3:
+        nr, nc = col, board_size - 1 - row
+    elif sym == 4:
+        nr, nc = row, board_size - 1 - col
+    elif sym == 5:
+        nr, nc = board_size - 1 - row, col
+    elif sym == 6:
+        nr, nc = col, row
+    else:
+        nr, nc = board_size - 1 - col, board_size - 1 - row
+    return nr * board_size + nc
+
+
+def augment_batch_symmetry(states, actions, next_states, board_size):
+    for i in range(states.shape[0]):
+        sym = random.randrange(8)
+        if sym == 0:
+            continue
+        states[i] = _apply_symmetry_to_flat_board(states[i], sym, board_size)
+        next_states[i] = _apply_symmetry_to_flat_board(next_states[i], sym, board_size)
+        actions[i] = _transform_action_index(actions[i], sym, board_size)
 
 
 def evaluate_policy(policy_net, board_size, games, device):
@@ -141,18 +196,19 @@ def evaluate_policy(policy_net, board_size, games, device):
 
 
 def train_dqn(
-    episodes=50000,
+    episodes=15_000,
     board_size=BOARD_SIZE,
     gamma=0.99,
-    lr=2.5e-4,
+    lr=1e-4,
     batch_size=128,
-    replay_capacity=300_000,
+    replay_capacity=100_000,
     warmup_steps=5000,
     target_update_every=1000,
     epsilon_start=1.0,
-    epsilon_end=0.12,
-    epsilon_decay_steps=1500000,
+    epsilon_end=0.05,
+    epsilon_decay_steps=180_000,
     train_every=4,
+    use_symmetry_augmentation=True,
     eval_every_episodes=500,
     eval_games=100,
     seed=42,
@@ -202,6 +258,9 @@ def train_dqn(
             if len(replay_buffer) >= min_replay_size and global_step % train_every == 0:
                 states, actions, rewards, next_states, dones = replay_buffer.sample(batch_size)
 
+                if use_symmetry_augmentation:
+                    augment_batch_symmetry(states, actions, next_states, board_size)
+
                 states_t = torch.tensor(states, dtype=torch.float32, device=device)
                 actions_t = torch.tensor(actions, dtype=torch.int64, device=device)
                 rewards_t = torch.tensor(rewards, dtype=torch.float32, device=device)
@@ -212,7 +271,7 @@ def train_dqn(
                 next_states_t = next_states_t.view(batch_size, 1, board_size, board_size)
 
                 q_pred = policy_net(states_t).gather(1, actions_t.unsqueeze(1)).squeeze(1)
-                next_q_max = compute_next_q_max(target_net, next_states_t, dones_t, device)
+                next_q_max = compute_next_q_max(policy_net, target_net, next_states_t, dones_t)
                 q_target = rewards_t + gamma * next_q_max
 
                 loss = loss_fn(q_pred, q_target)
