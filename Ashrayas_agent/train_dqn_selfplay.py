@@ -553,7 +553,7 @@ def train_self_play(
     eval_every_episodes=500,
     eval_games=100,
     seed=42,
-    init_checkpoint="dqn_gomoku_1.pt",
+    init_checkpoint="dqn_gomoku.pt",
     model_arch="auto",
     save_path="Ashrayas_agent/dqn_gomoku_selfplay.pt",
     best_save_path="Ashrayas_agent/dqn_gomoku_selfplay_best.pt",
@@ -786,7 +786,7 @@ def parse_args():
     parser.add_argument(
         "--init-checkpoint",
         type=str,
-        default="dqn_gomoku_1.pt",
+        default="dqn_gomoku.pt",
         help="Checkpoint to initialize from. Defaults to the existing trained agent in the project root.",
     )
     parser.add_argument(
