@@ -8,8 +8,8 @@
   and checks for win, then immediately makes the opponent place a random white stone and checks for an opponent win. 
   This process repeats until a win occurs. There is also multiple episodes implemented in the code.
   
-    The environment returns a new board state, a reward signal (-10 for invalid moves or losses,
-    +10 for wins, 0 for draws, -0.1 per step), plus optional tactical shaping rewards.
+  The environment returns a new board state, a reward signal (-10 for invalid moves or losses,
+  +10 for wins, 0 for draws, -0.1 per step).
   
 """
 
@@ -30,8 +30,6 @@ class GomokuEnv:
         self.loss_reward = -10.0
         self.draw_reward = 0.0
         self.use_dense_shaping = True
-        self.open_three_reward = 0.2
-        self.four_in_row_reward = 0.8
         
         if self.render_mode == 'human':
             from gameboard import GomokuGame
@@ -71,8 +69,9 @@ class GomokuEnv:
 
         dense_reward = 0.0
         if self.use_dense_shaping:
-            # Reward tactical structures for the learning agent.
-            dense_reward += self._structure_reward(row, col, 1)
+            # Encourage building longer contiguous lines.
+            agent_chain = self._max_chain_length(row, col, 1)
+            dense_reward += 0.15 * max(0, agent_chain - 1)
 
         # --- 2. OPPONENT MOVE (White / -1) ---
         empty_cells = list(zip(*np.where(self.logic.board == 0)))
@@ -91,8 +90,9 @@ class GomokuEnv:
                 return self.logic.board.copy(), reward, True, {"result": "Draw"}
 
         if self.use_dense_shaping:
-            # Mildly penalize when the random opponent creates strong structures.
-            dense_reward -= 0.5 * self._structure_reward(opp_r, opp_c, -1)
+            # Penalize allowing the opponent to build longer contiguous lines.
+            opp_chain = self._max_chain_length(opp_r, opp_c, -1)
+            dense_reward -= 0.12 * max(0, opp_chain - 1)
 
         # --- 3. GAME CONTINUES ---
         return self.logic.board.copy(), self.step_penalty + dense_reward, False, {}
@@ -121,44 +121,6 @@ class GomokuEnv:
             best = max(best, count)
 
         return best
-
-    def _line_length_and_open_ends(self, row, col, player, dr, dc):
-        count = 1
-
-        r, c = row + dr, col + dc
-        while 0 <= r < self.size and 0 <= c < self.size and self.logic.board[r][c] == player:
-            count += 1
-            r += dr
-            c += dc
-        open_end_1 = 0 <= r < self.size and 0 <= c < self.size and self.logic.board[r][c] == 0
-
-        r, c = row - dr, col - dc
-        while 0 <= r < self.size and 0 <= c < self.size and self.logic.board[r][c] == player:
-            count += 1
-            r -= dr
-            c -= dc
-        open_end_2 = 0 <= r < self.size and 0 <= c < self.size and self.logic.board[r][c] == 0
-
-        open_ends = int(open_end_1) + int(open_end_2)
-        return count, open_ends
-
-    def _structure_reward(self, row, col, player):
-        """Reward tactical local patterns created by the latest move."""
-        best_reward = 0.0
-        directions = [(0, 1), (1, 0), (1, 1), (1, -1)]
-
-        for dr, dc in directions:
-            length, open_ends = self._line_length_and_open_ends(row, col, player, dr, dc)
-
-            # Open three: exactly three in a row with both ends open.
-            if length == 3 and open_ends == 2:
-                best_reward = max(best_reward, self.open_three_reward)
-
-            # Four in a row: reward if it can still be extended.
-            if length >= 4 and open_ends >= 1:
-                best_reward = max(best_reward, self.four_in_row_reward)
-
-        return best_reward
 
     def render(self):
         """Updates the PyGame window to show the current board state."""
