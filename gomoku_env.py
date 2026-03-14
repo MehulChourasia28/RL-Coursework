@@ -71,7 +71,7 @@ class GomokuEnv:
         if self.use_dense_shaping:
             # Encourage building longer contiguous lines.
             agent_chain = self._max_chain_length(row, col, 1)
-            dense_reward += 0.15 * max(0, agent_chain - 1)
+            dense_reward += 0.04 * max(0, agent_chain - 1)
 
         # --- 2. OPPONENT MOVE (White / -1) ---
         empty_cells = list(zip(*np.where(self.logic.board == 0)))
@@ -92,7 +92,7 @@ class GomokuEnv:
         if self.use_dense_shaping:
             # Penalize allowing the opponent to build longer contiguous lines.
             opp_chain = self._max_chain_length(opp_r, opp_c, -1)
-            dense_reward -= 0.12 * max(0, opp_chain - 1)
+            dense_reward -= 0.04 * max(0, opp_chain - 1)
 
         # --- 3. GAME CONTINUES ---
         return self.logic.board.copy(), self.step_penalty + dense_reward, False, {}

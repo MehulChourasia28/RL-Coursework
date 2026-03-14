@@ -171,6 +171,13 @@ def select_action(policy_net, state, current_player, last_move, epsilon, device,
     return int(valid_actions[best_valid_idx])
 
 
+def select_random_action(state):
+    valid_actions = get_valid_actions(state)
+    if len(valid_actions) == 0:
+        return None
+    return int(random.choice(valid_actions))
+
+
 def transform_action_index(action_idx, sym, board_size):
     row, col = divmod(int(action_idx), board_size)
 
@@ -313,6 +320,27 @@ def build_model(model_arch, board_size, action_dim):
     raise ValueError(f"Unsupported model architecture: {model_arch}")
 
 
+def copy_state_dict_to_cpu(model):
+    return {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
+
+
+def sample_opponent_mode(opponent_pool, current_prob, pool_prob):
+    random_prob = max(0.0, 1.0 - current_prob - pool_prob)
+    modes = ["current", "random"]
+    weights = [max(0.0, current_prob), random_prob]
+
+    if len(opponent_pool) > 0 and pool_prob > 0.0:
+        modes.append("pool")
+        weights.append(pool_prob)
+
+    total = sum(weights)
+    if total <= 0.0:
+        return "random"
+
+    normalized = [w / total for w in weights]
+    return random.choices(modes, weights=normalized, k=1)[0]
+
+
 def _max_chain_length(board, row, col, player):
     directions = [(0, 1), (1, 0), (1, 1), (1, -1)]
     best = 1
@@ -339,8 +367,12 @@ def _max_chain_length(board, row, col, player):
     return best
 
 
-def play_policy_turn(policy_net, logic, player, last_move, epsilon, device, model_arch):
-    action = select_action(policy_net, logic.board, player, last_move, epsilon, device, model_arch)
+def play_policy_turn(policy_net, logic, player, last_move, epsilon, device, model_arch, random_policy=False):
+    if random_policy:
+        action = select_random_action(logic.board)
+    else:
+        action = select_action(policy_net, logic.board, player, last_move, epsilon, device, model_arch)
+
     if action is None:
         return None, 0.0, True, {"result": "Draw"}
 
@@ -357,7 +389,17 @@ def play_policy_turn(policy_net, logic, player, last_move, epsilon, device, mode
     return action, dense_reward, False, {"result": "Continue", "dense_reward": dense_reward}
 
 
-def run_self_play_episode(policy_net, board_size, epsilon, step_penalty, device, model_arch):
+def run_self_play_episode(
+    policy_net,
+    board_size,
+    epsilon,
+    step_penalty,
+    device,
+    model_arch,
+    opponent_net,
+    opponent_mode,
+    opponent_epsilon,
+):
     logic = GomokuLogic(size=board_size)
     learning_player = random.choice((1, -1))
     opponent_player = -learning_player
@@ -367,8 +409,18 @@ def run_self_play_episode(policy_net, board_size, epsilon, step_penalty, device,
     last_move = -1
 
     if learning_player == -1:
+        opener_is_random = opponent_mode == "random"
+        opener_net = None if opener_is_random else opponent_net
+        opener_eps = 1.0 if opener_is_random else opponent_epsilon
         opponent_action, opponent_reward, done, info = play_policy_turn(
-            policy_net, logic, opponent_player, last_move, epsilon, device, model_arch
+            opener_net,
+            logic,
+            opponent_player,
+            last_move,
+            opener_eps,
+            device,
+            model_arch,
+            random_policy=opener_is_random,
         )
         if opponent_action is not None:
             last_move = opponent_action
@@ -399,7 +451,14 @@ def run_self_play_episode(policy_net, board_size, epsilon, step_penalty, device,
             break
 
         opponent_action, _, opponent_done, opponent_info = play_policy_turn(
-            policy_net, logic, opponent_player, last_move, epsilon, device, model_arch
+            None if opponent_mode == "random" else opponent_net,
+            logic,
+            opponent_player,
+            last_move,
+            1.0 if opponent_mode == "random" else opponent_epsilon,
+            device,
+            model_arch,
+            random_policy=(opponent_mode == "random"),
         )
         if opponent_action is not None:
             last_move = opponent_action
@@ -423,7 +482,7 @@ def run_self_play_episode(policy_net, board_size, epsilon, step_penalty, device,
         )
         episode_reward += reward
 
-    return transitions, episode_reward, move_count, learning_player
+    return transitions, episode_reward, move_count, learning_player, opponent_mode
 
 
 def evaluate_policy_generic(policy_net, board_size, games, device, model_arch):
@@ -486,6 +545,11 @@ def train_self_play(
     train_every=4,
     step_penalty=-0.02,
     use_symmetry_augmentation=True,
+    opponent_current_prob=0.4,
+    opponent_pool_prob=0.4,
+    opponent_epsilon=0.03,
+    opponent_pool_size=12,
+    opponent_pool_update_every=500,
     eval_every_episodes=500,
     eval_games=100,
     seed=42,
@@ -514,6 +578,14 @@ def train_self_play(
     replay_buffer = ReplayBuffer(capacity=replay_capacity)
     min_replay_size = max(batch_size, warmup_steps)
     best_eval_win_rate = float(init_meta.get("best_eval_win_rate", -1.0))
+    opponent_pool = deque(maxlen=opponent_pool_size)
+    opponent_mode_counts = {"current": 0, "pool": 0, "random": 0}
+
+    opponent_net = build_model(resolved_model_arch, board_size, action_dim).to(device)
+    opponent_net.eval()
+
+    # Seed the pool so historical opponents exist from the start.
+    opponent_pool.append(copy_state_dict_to_cpu(policy_net))
 
     global_step = 0
 
@@ -532,9 +604,32 @@ def train_self_play(
             0.0, (epsilon_decay_steps - global_step) / epsilon_decay_steps
         )
 
-        transitions, episode_reward, move_count, learning_player = run_self_play_episode(
-            policy_net, board_size, epsilon, step_penalty, device, resolved_model_arch
+        if opponent_pool_update_every > 0 and episode % opponent_pool_update_every == 0:
+            opponent_pool.append(copy_state_dict_to_cpu(policy_net))
+
+        opponent_mode = sample_opponent_mode(opponent_pool, opponent_current_prob, opponent_pool_prob)
+        if opponent_mode == "pool" and len(opponent_pool) > 0:
+            sampled_state_dict = random.choice(list(opponent_pool))
+            opponent_net.load_state_dict(sampled_state_dict)
+            opponent_net.eval()
+            selected_opponent_net = opponent_net
+        elif opponent_mode == "current":
+            selected_opponent_net = policy_net
+        else:
+            selected_opponent_net = None
+
+        transitions, episode_reward, move_count, learning_player, used_opponent_mode = run_self_play_episode(
+            policy_net,
+            board_size,
+            epsilon,
+            step_penalty,
+            device,
+            resolved_model_arch,
+            selected_opponent_net,
+            opponent_mode,
+            opponent_epsilon,
         )
+        opponent_mode_counts[used_opponent_mode] += 1
 
         for transition in transitions:
             replay_buffer.add(*transition)
@@ -575,6 +670,7 @@ def train_self_play(
             print(
                 f"Episode {episode:>6}/{episodes} | "
                 f"Learner: {learner_side:<5} | "
+                f"Opp: {used_opponent_mode:<7} | "
                 f"Moves: {move_count:>3} | "
                 f"Reward: {episode_reward:>7.2f} | "
                 f"Epsilon: {epsilon:>5.3f} | "
@@ -588,7 +684,11 @@ def train_self_play(
             win_rate = wins / max(1, eval_games)
             print(
                 f"[Eval @ ep {episode}] W/D/L: {wins}/{draws}/{losses} "
-                f"| Win rate: {win_rate:.3f}"
+                f"| Win rate: {win_rate:.3f} "
+                f"| Opp mix (cur/pool/rnd): "
+                f"{opponent_mode_counts['current']}/"
+                f"{opponent_mode_counts['pool']}/"
+                f"{opponent_mode_counts['random']}"
             )
 
             if win_rate > best_eval_win_rate:
@@ -604,6 +704,10 @@ def train_self_play(
                         "seed": seed,
                         "trained_from": str(init_ckpt_path) if init_ckpt_path else "scratch",
                         "training_mode": "self_play",
+                        "opponent_current_prob": opponent_current_prob,
+                        "opponent_pool_prob": opponent_pool_prob,
+                        "opponent_epsilon": opponent_epsilon,
+                        "opponent_pool_size": opponent_pool_size,
                     },
                     resolved_best_save_path,
                 )
@@ -619,6 +723,10 @@ def train_self_play(
             "seed": seed,
             "trained_from": str(init_ckpt_path) if init_ckpt_path else "scratch",
             "training_mode": "self_play",
+            "opponent_current_prob": opponent_current_prob,
+            "opponent_pool_prob": opponent_pool_prob,
+            "opponent_epsilon": opponent_epsilon,
+            "opponent_pool_size": opponent_pool_size,
         },
         resolved_save_path,
     )
@@ -642,6 +750,36 @@ def parse_args():
     parser.add_argument("--epsilon-decay-steps", type=int, default=450_000)
     parser.add_argument("--train-every", type=int, default=4)
     parser.add_argument("--step-penalty", type=float, default=-0.02)
+    parser.add_argument(
+        "--opponent-current-prob",
+        type=float,
+        default=0.4,
+        help="Probability of using current policy as opponent in an episode.",
+    )
+    parser.add_argument(
+        "--opponent-pool-prob",
+        type=float,
+        default=0.4,
+        help="Probability of using a historical snapshot opponent from the pool.",
+    )
+    parser.add_argument(
+        "--opponent-epsilon",
+        type=float,
+        default=0.03,
+        help="Exploration epsilon for non-random opponents.",
+    )
+    parser.add_argument(
+        "--opponent-pool-size",
+        type=int,
+        default=12,
+        help="Maximum number of historical opponent snapshots to keep.",
+    )
+    parser.add_argument(
+        "--opponent-pool-update-every",
+        type=int,
+        default=500,
+        help="How often (episodes) to snapshot current policy into opponent pool.",
+    )
     parser.add_argument("--eval-every-episodes", type=int, default=500)
     parser.add_argument("--eval-games", type=int, default=100)
     parser.add_argument("--seed", type=int, default=42)
@@ -688,6 +826,11 @@ if __name__ == "__main__":
         epsilon_decay_steps=args.epsilon_decay_steps,
         train_every=args.train_every,
         step_penalty=args.step_penalty,
+        opponent_current_prob=args.opponent_current_prob,
+        opponent_pool_prob=args.opponent_pool_prob,
+        opponent_epsilon=args.opponent_epsilon,
+        opponent_pool_size=args.opponent_pool_size,
+        opponent_pool_update_every=args.opponent_pool_update_every,
         use_symmetry_augmentation=not args.no_symmetry_augmentation,
         eval_every_episodes=args.eval_every_episodes,
         eval_games=args.eval_games,
