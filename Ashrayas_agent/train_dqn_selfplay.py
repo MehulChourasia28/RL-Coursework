@@ -742,7 +742,7 @@ def train_self_play(
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Continue Gomoku DQN training via self-play")
-    parser.add_argument("--episodes", type=int, default=15_000)
+    parser.add_argument("--episodes", type=int, default=25_000)
     parser.add_argument("--board-size", type=int, default=BOARD_SIZE)
     parser.add_argument("--gamma", type=float, default=0.99)
     parser.add_argument("--lr", type=float, default=1e-4)
@@ -750,9 +750,9 @@ def parse_args():
     parser.add_argument("--replay-capacity", type=int, default=100_000)
     parser.add_argument("--warmup-steps", type=int, default=5_000)
     parser.add_argument("--target-update-every", type=int, default=1_000)
-    parser.add_argument("--epsilon-start", type=float, default=0.2)
+    parser.add_argument("--epsilon-start", type=float, default=0.8)
     parser.add_argument("--epsilon-end", type=float, default=0.03)
-    parser.add_argument("--epsilon-decay-steps", type=int, default=120_000)
+    parser.add_argument("--epsilon-decay-steps", type=int, default=320_000)
     parser.add_argument("--train-every", type=int, default=4)
     parser.add_argument("--step-penalty", type=float, default=-0.005)
     parser.add_argument(
