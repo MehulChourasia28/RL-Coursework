@@ -609,21 +609,21 @@ def train_self_play(
     episodes=15_000,
     board_size=BOARD_SIZE,
     gamma=0.99,
-    lr=1e-4,
+    lr=5e-5,
     batch_size=128,
     replay_capacity=100_000,
     warmup_steps=5_000,
     target_update_every=1_000,
-    epsilon_start=0.2,
-    epsilon_end=0.03,
-    epsilon_decay_steps=120_000,
+    epsilon_start=0.10,
+    epsilon_end=0.01,
+    epsilon_decay_steps=200_000,
     train_every=4,
-    step_penalty=-0.005,
+    step_penalty=-0.015,
     use_symmetry_augmentation=True,
-    opponent_current_prob=0.4,
-    opponent_pool_prob=0.4,
-    opponent_tactical_prob=0.15,
-    opponent_epsilon=0.03,
+    opponent_current_prob=0.25,
+    opponent_pool_prob=0.25,
+    opponent_tactical_prob=0.10,
+    opponent_epsilon=0.01,
     opponent_pool_size=12,
     opponent_pool_update_every=500,
     eval_every_episodes=500,
@@ -826,38 +826,38 @@ def parse_args():
     parser.add_argument("--episodes", type=int, default=25_000) #15000
     parser.add_argument("--board-size", type=int, default=BOARD_SIZE)
     parser.add_argument("--gamma", type=float, default=0.99)
-    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--lr", type=float, default=5e-5)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--replay-capacity", type=int, default=100_000)
     parser.add_argument("--warmup-steps", type=int, default=5_000)
     parser.add_argument("--target-update-every", type=int, default=1_000)
-    parser.add_argument("--epsilon-start", type=float, default=0.8)
-    parser.add_argument("--epsilon-end", type=float, default=0.03)
-    parser.add_argument("--epsilon-decay-steps", type=int, default=320_000)
+    parser.add_argument("--epsilon-start", type=float, default=0.10)
+    parser.add_argument("--epsilon-end", type=float, default=0.01)
+    parser.add_argument("--epsilon-decay-steps", type=int, default=200_000)
     parser.add_argument("--train-every", type=int, default=4)
-    parser.add_argument("--step-penalty", type=float, default=-0.005)
+    parser.add_argument("--step-penalty", type=float, default=-0.015)
     parser.add_argument(
         "--opponent-current-prob",
         type=float,
-        default=0.4,
+        default=0.25,
         help="Probability of using current policy as opponent in an episode.",
     )
     parser.add_argument(
         "--opponent-pool-prob",
         type=float,
-        default=0.4,
+        default=0.25,
         help="Probability of using a historical snapshot opponent from the pool.",
     )
     parser.add_argument(
         "--opponent-tactical-prob",
         type=float,
-        default=0.15,
+        default=0.10,
         help="Probability of using a tactical opponent (win-now/block-now) in an episode.",
     )
     parser.add_argument(
         "--opponent-epsilon",
         type=float,
-        default=0.03,
+        default=0.01,
         help="Exploration epsilon for non-random opponents.",
     )
     parser.add_argument(
