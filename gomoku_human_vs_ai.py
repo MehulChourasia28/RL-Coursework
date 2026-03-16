@@ -167,6 +167,10 @@ def _resolve_checkpoint_path(user_path):
         #workspace_root / "dqn_gomoku_selfplay.pt",
         #workspace_root / "dqn_gomoku_random_good.pt",
         #workspace_root / "dqn_gomoku_selfplay_decent.pt",
+        #workspace_root / "dqn_gomoku.pt",
+        workspace_root / "dqn_gomoku_selfplay_good.pt",
+
+        
     ]
 
     return next((p for p in candidates if p.exists()), None)
