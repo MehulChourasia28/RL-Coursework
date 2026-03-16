@@ -1,103 +1,80 @@
-from __future__ import annotations
+"""
+Public predict_move API for the AlphaZero Gomoku agent.
+Falls back to heuristic if no checkpoint exists.
+"""
 
-from dataclasses import replace
-from pathlib import Path
+import os
+from typing import Optional, Tuple
 
 import numpy as np
 import torch
 
-from Mehuls_agent.config import NetworkConfig, RuntimeConfig, SearchConfig, dataclass_to_dict, default_runtime_config
-from Mehuls_agent.encoding import encode_state
-from Mehuls_agent.heuristics import choose_heuristic_action, coord_to_action
-from Mehuls_agent.mcts import MCTS
-from Mehuls_agent.model import PolicyValueNet
-from Mehuls_agent.state import GomokuState
+from .heuristics import heuristic_move
+
+BOARD_SIZE      = 9
+CHECKPOINT_PATH = os.path.join(os.path.dirname(__file__), "checkpoint.pt")
+N_SIMS_PLAY     = 400        # simulations per move during human play
+
+_mcts   = None
+_device = None
 
 
-class GomokuRLAgent:
-    def __init__(self, runtime_config: RuntimeConfig | None = None):
-        self.runtime_config = runtime_config or default_runtime_config()
-        self.device = self._select_device(self.runtime_config.device)
-        self.model: PolicyValueNet | None = None
-        self.network_config = NetworkConfig(board_size=self.runtime_config.board_size)
-        self.search_config = SearchConfig(simulations=self.runtime_config.simulations)
-        self._load_checkpoint_if_available()
+def load_agent():
+    """Lazy-load the MCTS agent. Returns None if no checkpoint found."""
+    global _mcts, _device
+    if _mcts is not None:
+        return _mcts
+    if not os.path.exists(CHECKPOINT_PATH):
+        return None
 
-    def _select_device(self, requested: str) -> torch.device:
-        if requested == "cpu":
-            return torch.device("cpu")
-        if requested == "cuda":
-            return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    from .model import PolicyValueNet
+    from .mcts  import MCTS
 
-    def _load_checkpoint_if_available(self) -> None:
-        checkpoint_path = Path(self.runtime_config.checkpoint_path)
-        if not checkpoint_path.exists():
-            self.model = None
-            return
+    _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    ckpt    = torch.load(CHECKPOINT_PATH, map_location=_device, weights_only=False)
 
-        checkpoint = torch.load(checkpoint_path, map_location=self.device)
-        network_kwargs = checkpoint.get("network_config", {})
-        self.network_config = NetworkConfig(**{**dataclass_to_dict(self.network_config), **network_kwargs})
-        self.search_config = replace(self.search_config, simulations=self.runtime_config.simulations)
-        self.model = PolicyValueNet(**dataclass_to_dict(self.network_config)).to(self.device)
-        self.model.load_state_dict(checkpoint["model_state_dict"])
-        self.model.eval()
+    # Only load AlphaZero checkpoints (have 'config' key)
+    if "config" not in ckpt:
+        return None
 
-    def has_model(self) -> bool:
-        return self.model is not None
+    cfg = ckpt["config"]
+    net = PolicyValueNet(
+        board_size     = cfg.get("board_size",     BOARD_SIZE),
+        channels       = cfg.get("channels",       128),
+        num_res_blocks = cfg.get("num_res_blocks", 6),
+    ).to(_device)
 
-    def evaluate_state(self, state: GomokuState) -> tuple[np.ndarray, float]:
-        assert self.model is not None
-        features = torch.from_numpy(encode_state(state)).unsqueeze(0).to(self.device)
-        with torch.no_grad():
-            policy_logits, value = self.model(features)
-        return policy_logits.squeeze(0).detach().cpu().numpy(), float(value.item())
+    sd = {k.replace("_orig_mod.", ""): v for k, v in ckpt["net"].items()}
+    net.load_state_dict(sd)
+    net.eval()
 
-    def select_action(self, board_state: np.ndarray, player: int) -> int:
-        size = board_state.shape[0]
-        state = GomokuState(size=size, board=board_state.astype(np.int8, copy=True), current_player=player)
-        legal = state.legal_actions()
-        if legal.size == 0:
-            return -1
+    _mcts = MCTS(net, _device, n_simulations=N_SIMS_PLAY, dirichlet_epsilon=0.0)
+    return _mcts
 
-        if self.model is None and Path(self.runtime_config.checkpoint_path).exists():
-            self._load_checkpoint_if_available()
 
-        if self.model is None:
-            if self.runtime_config.heuristic_fallback:
-                return choose_heuristic_action(state.board.copy(), player)
-            return int(legal[0])
+def predict_move(board_state: np.ndarray, player: int) -> Tuple[int, int]:
+    """
+    Return the best move as (x, y) = (col, row).
 
-        if self.runtime_config.use_search:
-            search = MCTS(self.evaluate_state, self.search_config)
-            distribution = search.search(state, training=False, move_number=state.occupied_count())
-            return int(np.argmax(distribution))
+    Args:
+        board_state : (size, size) numpy array, +1=black, -1=white, 0=empty
+        player      : +1 or -1, the player to move
 
-        logits, _ = self.evaluate_state(state)
-        logits = logits.astype(np.float64, copy=False)
-        invalid = state.board.reshape(-1) != 0
-        logits[invalid] = -np.inf
-        return int(np.argmax(logits))
-
-    def predict_xy(self, board_state: np.ndarray, player: int) -> tuple[int, int]:
-        action = self.select_action(board_state, player)
-        if action < 0:
-            return -1, -1
-        row, col = divmod(action, board_state.shape[0])
+    Returns:
+        (col, row)  — x=col, y=row, matching gomoku_human_vs_ai.py convention
+    """
+    agent = load_agent()
+    if agent is None:
+        row, col = heuristic_move(board_state, player)
         return int(col), int(row)
 
+    policy = agent.get_policy(board_state, player, temperature=0.0, add_noise=False)
 
-_LOADED_AGENT: GomokuRLAgent | None = None
+    # Mask illegal moves
+    valid  = (board_state.flatten() == 0).astype(np.float32)
+    policy = policy * valid
 
-
-def load_agent(runtime_config: RuntimeConfig | None = None) -> GomokuRLAgent:
-    global _LOADED_AGENT
-    if _LOADED_AGENT is None or runtime_config is not None:
-        _LOADED_AGENT = GomokuRLAgent(runtime_config)
-    return _LOADED_AGENT
-
-
-def predict_move(board_state: np.ndarray, player: int) -> tuple[int, int]:
-    agent = load_agent()
-    return agent.predict_xy(board_state, player)
+    action = int(np.argmax(policy))
+    row    = action // board_state.shape[0]
+    col    = action  % board_state.shape[0]
+    return int(col), int(row)   # x=col, y=row

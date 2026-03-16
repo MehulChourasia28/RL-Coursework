@@ -1,9 +1,12 @@
-from Mehuls_agent.config import default_runtime_config, default_training_config
-from Mehuls_agent.inference import GomokuRLAgent, load_agent
+"""
+Mehuls_agent — DDQN-based Gomoku agent.
 
-__all__ = [
-    "GomokuRLAgent",
-    "load_agent",
-    "default_runtime_config",
-    "default_training_config",
-]
+Public API
+----------
+predict_move(board_state, player)  →  (x, y)
+load_agent()                       →  DDQNAgent | None
+"""
+
+from .inference import predict_move, load_agent
+
+__all__ = ["predict_move", "load_agent"]

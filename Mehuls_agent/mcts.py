@@ -1,154 +1,228 @@
-from __future__ import annotations
+"""
+AlphaZero-style Monte Carlo Tree Search for Gomoku.
+
+Q-value convention (negamax):
+  - node.W / node.N  is the average value from THAT NODE'S player's perspective
+  - +1 = the player to move at this node is winning
+  - PUCT selection: score = -Q(child) + c_puct * P * sqrt(N_parent) / (1 + N_child)
+    (negate Q because the child's player is the opponent of the current player)
+  - Backup: flip sign at each edge going up the tree
+"""
 
 import math
-from dataclasses import dataclass, replace
-from typing import Callable
+from typing import Dict, Optional, Tuple
 
 import numpy as np
+import torch
 
-from Mehuls_agent.config import SearchConfig
-from Mehuls_agent.heuristics import heuristic_policy
-from Mehuls_agent.state import GomokuState
+from .model import PolicyValueNet, encode_state
 
-
-Evaluator = Callable[[GomokuState], tuple[np.ndarray, float]]
+BOARD_SIZE = 9
 
 
-@dataclass(slots=True)
+# ---------------------------------------------------------------------------
+# Fast inline win detection
+# ---------------------------------------------------------------------------
+
+def _check_winner(board: np.ndarray, row: int, col: int, player: int) -> bool:
+    """Check if placing player at (row, col) has created a 5-in-a-row."""
+    size = board.shape[0]
+    for dr, dc in ((0, 1), (1, 0), (1, 1), (1, -1)):
+        count = 1
+        for sign in (1, -1):
+            for step in range(1, 5):
+                r = row + sign * dr * step
+                c = col + sign * dc * step
+                if 0 <= r < size and 0 <= c < size and board[r, c] == player:
+                    count += 1
+                else:
+                    break
+        if count >= 5:
+            return True
+    return False
+
+
+# ---------------------------------------------------------------------------
+# MCTS Node
+# ---------------------------------------------------------------------------
+
 class Node:
-    state: GomokuState
-    prior: float = 0.0
-    visit_count: int = 0
-    value_sum: float = 0.0
-    children: dict[int, "Node"] | None = None
+    """
+    Each node represents a board state.
+    N, W, Q are from the perspective of the player TO MOVE at this node.
+    """
+    __slots__ = ("parent", "action", "children", "N", "W", "Q", "P")
 
-    def expanded(self) -> bool:
-        return bool(self.children)
+    def __init__(self, parent: Optional["Node"], action: Optional[int], prior: float):
+        self.parent  = parent
+        self.action  = action          # flat action that led here from parent
+        self.children: Dict[int, "Node"] = {}
+        self.N = 0
+        self.W = 0.0
+        self.Q = 0.0
+        self.P = prior                 # prior probability from policy head
 
-    @property
-    def mean_value(self) -> float:
-        if self.visit_count == 0:
-            return 0.0
-        return self.value_sum / self.visit_count
+    def is_leaf(self) -> bool:
+        return len(self.children) == 0
 
-
-class MCTS:
-    def __init__(self, evaluator: Evaluator, search_config: SearchConfig, rng: np.random.Generator | None = None):
-        self.evaluator = evaluator
-        self.search_config = search_config
-        self.rng = rng or np.random.default_rng()
-
-    def search(self, root_state: GomokuState, training: bool = False, move_number: int = 0) -> np.ndarray:
-        root = Node(state=root_state.clone(), children={})
-        priors, _ = self.evaluator(root.state)
-        self._expand(root, priors, add_noise=training)
-
-        for _ in range(self.search_config.simulations):
-            node = root
-            path = [node]
-
-            while node.expanded() and not node.state.terminal:
-                _, node = self._select_child(node)
-                path.append(node)
-
-            if node.state.terminal:
-                value = node.state.outcome_for(node.state.current_player)
-            else:
-                priors, value = self.evaluator(node.state)
-                self._expand(node, priors, add_noise=False)
-
-            self._backpropagate(path, value)
-
-        temperature = (
-            self.search_config.exploration_temperature
-            if training and move_number < self.search_config.temperature_moves
-            else self.search_config.deterministic_temperature
-        )
-        return self._visit_distribution(root, temperature)
-
-    def _select_child(self, node: Node) -> tuple[int, Node]:
-        assert node.children is not None
-        total_visits = math.sqrt(max(1, node.visit_count))
-        best_action = -1
-        best_score = -math.inf
-        best_child = None
-        for action, child in node.children.items():
-            exploration = self.search_config.c_puct * child.prior * total_visits / (1 + child.visit_count)
-            score = -child.mean_value + exploration
+    def select_child(self, c_puct: float) -> Tuple[int, "Node"]:
+        """PUCT: score = -Q(child) + c_puct * P * sqrt(N) / (1 + N_child)"""
+        sqrt_N = math.sqrt(max(self.N, 1))
+        best_score = -float("inf")
+        best_action, best_child = -1, None
+        for action, child in self.children.items():
+            score = -child.Q + c_puct * child.P * sqrt_N / (1 + child.N)
             if score > best_score:
                 best_score = score
                 best_action = action
                 best_child = child
-        assert best_child is not None
         return best_action, best_child
 
-    def _expand(self, node: Node, policy_logits: np.ndarray, add_noise: bool) -> None:
-        legal_actions = node.state.legal_actions()
-        node.children = {}
-        if legal_actions.size == 0:
-            return
+    def expand(self, priors: np.ndarray, valid_mask: np.ndarray):
+        """Create children for every legal move, using network priors."""
+        p = priors * valid_mask
+        s = p.sum()
+        p = p / s if s > 1e-10 else valid_mask / valid_mask.sum()
+        for a in np.where(valid_mask)[0]:
+            self.children[int(a)] = Node(self, int(a), float(p[a]))
 
-        legal_logits = policy_logits[legal_actions].astype(np.float64, copy=False)
-        legal_logits -= legal_logits.max()
-        network_prior = np.exp(legal_logits)
-        network_prior_sum = float(network_prior.sum())
-        if network_prior_sum <= 0.0:
-            network_prior = np.full(len(legal_actions), 1.0 / len(legal_actions), dtype=np.float64)
+    def backup(self, value: float):
+        """
+        Propagate value up the tree.
+        value is from THIS node's player's perspective.
+        Sign flips at each edge (opponent's perspective).
+        """
+        node = self
+        v = value
+        while node is not None:
+            node.N += 1
+            node.W += v
+            node.Q  = node.W / node.N
+            v = -v
+            node = node.parent
+
+
+# ---------------------------------------------------------------------------
+# MCTS
+# ---------------------------------------------------------------------------
+
+class MCTS:
+    def __init__(
+        self,
+        net: PolicyValueNet,
+        device: torch.device,
+        n_simulations: int = 400,
+        c_puct: float = 1.5,
+        dirichlet_alpha: float = 0.3,
+        dirichlet_epsilon: float = 0.25,
+    ):
+        self.net       = net
+        self.device    = device
+        self.n_sims    = n_simulations
+        self.c_puct    = c_puct
+        self.dir_alpha = dirichlet_alpha
+        self.dir_eps   = dirichlet_epsilon
+
+    # ------------------------------------------------------------------
+    # Neural net inference
+    # ------------------------------------------------------------------
+
+    @torch.no_grad()
+    def _infer(self, board: np.ndarray, player: int) -> Tuple[np.ndarray, float]:
+        """Return (policy_probs, value) from the network."""
+        state = encode_state(board, player)
+        x = torch.FloatTensor(state).unsqueeze(0).to(self.device)
+        log_p, v = self.net(x)
+        probs = log_p.exp().squeeze(0).cpu().numpy()
+        return probs, float(v.item())
+
+    # ------------------------------------------------------------------
+    # Main search
+    # ------------------------------------------------------------------
+
+    def get_policy(
+        self,
+        board: np.ndarray,
+        player: int,
+        temperature: float = 1.0,
+        add_noise: bool = True,
+    ) -> np.ndarray:
+        """
+        Run MCTS and return a move probability distribution.
+
+        Returns:
+            policy: (board_size^2,) float32 array
+        """
+        size = board.shape[0]
+
+        # Initialise root
+        root = Node(None, None, 1.0)
+        valid_mask = (board.flatten() == 0).astype(np.float32)
+        priors, _ = self._infer(board, player)
+        root.expand(priors, valid_mask)
+        root.N = 1   # virtual root visit so sqrt(N) is well-defined immediately
+
+        # Dirichlet noise on root priors for training exploration
+        if add_noise and root.children:
+            actions = list(root.children.keys())
+            noise   = np.random.dirichlet([self.dir_alpha] * len(actions))
+            for a, n in zip(actions, noise):
+                c = root.children[a]
+                c.P = (1.0 - self.dir_eps) * c.P + self.dir_eps * n
+
+        # ── Simulations ──────────────────────────────────────────────────
+        for _ in range(self.n_sims):
+            node       = root
+            sim_board  = board.copy()
+            sim_player = player
+            path_len   = 0
+            done       = False
+
+            # Selection: walk down the tree
+            while not node.is_leaf():
+                action, node = node.select_child(self.c_puct)
+                r, c = divmod(action, size)
+                sim_board[r, c] = sim_player
+
+                if _check_winner(sim_board, r, c, sim_player):
+                    # sim_player just won.
+                    # node's player is -sim_player (they're about to move but already lost).
+                    # From node's player's perspective: value = -1.
+                    node.backup(-1.0)
+                    done = True
+                    break
+
+                sim_player = -sim_player
+                path_len  += 1
+
+            if done:
+                continue
+
+            # Evaluation at leaf
+            valid = (sim_board.flatten() == 0).astype(np.float32)
+            if valid.sum() == 0:
+                # Draw
+                node.backup(0.0)
+                continue
+
+            priors, value = self._infer(sim_board, sim_player)
+            node.expand(priors, valid)
+            # value is from sim_player's perspective = node's player's perspective
+            node.backup(value)
+
+        # ── Build policy from visit counts ───────────────────────────────
+        visits = np.array(
+            [root.children[a].N if a in root.children else 0
+             for a in range(size * size)],
+            dtype=np.float32,
+        )
+
+        if temperature == 0.0:
+            policy = np.zeros(size * size, dtype=np.float32)
+            policy[int(np.argmax(visits))] = 1.0
         else:
-            network_prior /= network_prior_sum
+            visits_t = visits ** (1.0 / temperature)
+            s = visits_t.sum()
+            policy = visits_t / s if s > 0 else visits / (visits.sum() + 1e-10)
 
-        heuristic_prior = heuristic_policy(node.state.board, node.state.current_player)[legal_actions].astype(np.float64, copy=False)
-        heuristic_sum = float(heuristic_prior.sum())
-        if heuristic_sum > 0.0:
-            heuristic_prior /= heuristic_sum
-            blend = self.search_config.heuristic_prior_blend
-            blended_prior = (1.0 - blend) * network_prior + blend * heuristic_prior
-        else:
-            blended_prior = network_prior
-
-        if add_noise and len(legal_actions) > 1:
-            noise = self.rng.dirichlet([self.search_config.dirichlet_alpha] * len(legal_actions))
-            blended_prior = (1.0 - self.search_config.dirichlet_fraction) * blended_prior + self.search_config.dirichlet_fraction * noise
-
-        blended_sum = float(blended_prior.sum())
-        if blended_sum > 0.0:
-            blended_prior /= blended_sum
-
-        for action, prior in zip(legal_actions, blended_prior, strict=True):
-            child_state = node.state.apply_action(int(action))
-            node.children[int(action)] = Node(state=child_state, prior=float(prior), children={})
-
-    def _backpropagate(self, path: list[Node], value: float) -> None:
-        current_value = value
-        for node in reversed(path):
-            node.visit_count += 1
-            node.value_sum += current_value
-            current_value = -current_value
-
-    def _visit_distribution(self, root: Node, temperature: float) -> np.ndarray:
-        board_size = root.state.size
-        distribution = np.zeros(board_size * board_size, dtype=np.float32)
-        if not root.children:
-            return distribution
-
-        actions = np.array(list(root.children.keys()), dtype=np.int64)
-        visits = np.array([child.visit_count for child in root.children.values()], dtype=np.float64)
-
-        if temperature <= 0.05:
-            best_action = actions[int(np.argmax(visits))]
-            distribution[best_action] = 1.0
-            return distribution
-
-        adjusted = np.power(visits + 1e-8, 1.0 / temperature)
-        adjusted_sum = float(adjusted.sum())
-        if adjusted_sum <= 0.0:
-            distribution[actions] = 1.0 / len(actions)
-            return distribution
-        distribution[actions] = adjusted / adjusted_sum
-        return distribution
-
-
-def clone_search_config(search_config: SearchConfig, simulations: int | None = None) -> SearchConfig:
-    if simulations is None:
-        return replace(search_config)
-    return replace(search_config, simulations=simulations)
+        return policy

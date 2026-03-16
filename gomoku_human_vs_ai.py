@@ -4,14 +4,14 @@ import sys
 import numpy as np
 import pygame
 
-from Mehuls_agent.inference import predict_move
 from gameboard import GomokuGame
 from gomoku_config import BOARD_SIZE
+from Mehuls_agent import predict_move
 
 
 def predict(board_state, player=-1):
     """
-    AI move hook backed by Mehuls_agent.
+    AI move hook backed by Mehuls_agent AlphaZero agent.
 
     Args:
         board_state (np.ndarray): board where

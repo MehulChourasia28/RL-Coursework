@@ -1,69 +1,132 @@
-from __future__ import annotations
+"""
+Policy-Value network for AlphaZero-style Gomoku.
 
+Input:  (B, 3, size, size)
+  ch0 = current player's stones  (1 where board == player)
+  ch1 = opponent's stones        (1 where board == -player)
+  ch2 = ones                     (bias plane)
+
+Outputs:
+  log_policy : (B, size*size)  — log-probabilities over moves
+  value      : (B,)            — win probability in [-1, +1]
+                                 +1 = current player wins
+"""
+
+import numpy as np
 import torch
-from torch import nn
+import torch.nn as nn
+import torch.nn.functional as F
 
 
-class ResidualBlock(nn.Module):
+# ---------------------------------------------------------------------------
+# State encoding (used by both MCTS and training)
+# ---------------------------------------------------------------------------
+
+def encode_state(board: np.ndarray, player: int) -> np.ndarray:
+    """
+    Return (3, size, size) float32 tensor from the current player's perspective.
+      ch0  own stones   (1 where board == player)
+      ch1  opp stones   (1 where board == -player)
+      ch2  ones         (bias plane)
+    """
+    own  = (board == player).astype(np.float32)
+    opp  = (board == -player).astype(np.float32)
+    ones = np.ones_like(own)
+    return np.stack([own, opp, ones], axis=0)
+
+
+# ---------------------------------------------------------------------------
+# Network building blocks
+# ---------------------------------------------------------------------------
+
+class ResBlock(nn.Module):
     def __init__(self, channels: int):
         super().__init__()
-        self.conv1 = nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(channels)
-        self.conv2 = nn.Conv2d(channels, channels, kernel_size=3, padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(channels)
-        self.activation = nn.ReLU(inplace=True)
+        self.net = nn.Sequential(
+            nn.Conv2d(channels, channels, 3, padding=1, bias=False),
+            nn.BatchNorm2d(channels),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(channels, channels, 3, padding=1, bias=False),
+            nn.BatchNorm2d(channels),
+        )
 
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
-        residual = inputs
-        x = self.activation(self.bn1(self.conv1(inputs)))
-        x = self.bn2(self.conv2(x))
-        return self.activation(x + residual)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return F.relu(x + self.net(x), inplace=True)
 
+
+# ---------------------------------------------------------------------------
+# PolicyValueNet
+# ---------------------------------------------------------------------------
 
 class PolicyValueNet(nn.Module):
     def __init__(
         self,
-        board_size: int,
-        input_planes: int = 4,
-        channels: int = 96,
-        residual_blocks: int = 6,
-        value_hidden_dim: int = 128,
+        board_size: int = 9,
+        in_channels: int = 3,
+        channels: int = 128,
+        num_res_blocks: int = 6,
     ):
         super().__init__()
         self.board_size = board_size
+        n = board_size * board_size
+
+        # Shared backbone
         self.stem = nn.Sequential(
-            nn.Conv2d(input_planes, channels, kernel_size=3, padding=1, bias=False),
+            nn.Conv2d(in_channels, channels, 3, padding=1, bias=False),
             nn.BatchNorm2d(channels),
             nn.ReLU(inplace=True),
         )
-        self.trunk = nn.Sequential(*[ResidualBlock(channels) for _ in range(residual_blocks)])
+        self.trunk = nn.Sequential(*[ResBlock(channels) for _ in range(num_res_blocks)])
 
-        self.policy_head = nn.Sequential(
-            nn.Conv2d(channels, 2, kernel_size=1, bias=False),
+        # Policy head: 2-filter conv → FC → log_softmax
+        self.policy_conv = nn.Sequential(
+            nn.Conv2d(channels, 2, 1, bias=False),
             nn.BatchNorm2d(2),
             nn.ReLU(inplace=True),
         )
-        self.policy_linear = nn.Linear(2 * board_size * board_size, board_size * board_size)
+        self.policy_fc = nn.Linear(2 * n, n)
 
-        self.value_head = nn.Sequential(
-            nn.Conv2d(channels, 1, kernel_size=1, bias=False),
+        # Value head: 1-filter conv → FC(64) → FC(1) → tanh
+        self.value_conv = nn.Sequential(
+            nn.Conv2d(channels, 1, 1, bias=False),
             nn.BatchNorm2d(1),
             nn.ReLU(inplace=True),
         )
-        self.value_linear1 = nn.Linear(board_size * board_size, value_hidden_dim)
-        self.value_linear2 = nn.Linear(value_hidden_dim, 1)
-        self.value_activation = nn.ReLU(inplace=True)
-        self.value_tanh = nn.Tanh()
+        self.value_fc = nn.Sequential(
+            nn.Linear(n, 64),
+            nn.ReLU(inplace=True),
+            nn.Linear(64, 1),
+            nn.Tanh(),
+        )
 
-    def forward(self, inputs: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        x = self.trunk(self.stem(inputs))
+        self._init_weights()
 
-        policy = self.policy_head(x)
-        policy = policy.view(policy.shape[0], -1)
-        policy_logits = self.policy_linear(policy)
+    def _init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
 
-        value = self.value_head(x)
-        value = value.view(value.shape[0], -1)
-        value = self.value_activation(self.value_linear1(value))
-        value = self.value_tanh(self.value_linear2(value))
-        return policy_logits, value.squeeze(-1)
+    def forward(self, x: torch.Tensor):
+        """
+        Args:
+            x: (B, 3, size, size)
+        Returns:
+            log_policy : (B, size*size)
+            value      : (B,)
+        """
+        h = self.trunk(self.stem(x))
+
+        p = self.policy_conv(h).flatten(1)
+        log_policy = F.log_softmax(self.policy_fc(p), dim=1)
+
+        v = self.value_conv(h).flatten(1)
+        value = self.value_fc(v).squeeze(1)
+
+        return log_policy, value

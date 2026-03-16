@@ -1,7 +1,7 @@
 """Central configuration for Gomoku settings."""
 
 # Change this single value to resize the board across Gomoku modules.
-BOARD_SIZE = 15
+BOARD_SIZE = 9
 
 # Visual scaling for PyGame board rendering.
 # The board window will target at most this many pixels in width/height.
