@@ -196,7 +196,7 @@ def evaluate_policy(policy_net, board_size, games, device):
 
 
 def train_dqn(
-    episodes=15_000,
+    episodes=12_000,
     board_size=BOARD_SIZE,
     gamma=0.99,
     lr=1e-4,

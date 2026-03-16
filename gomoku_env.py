@@ -30,6 +30,8 @@ class GomokuEnv:
         self.loss_reward = -10.0
         self.draw_reward = 0.0
         self.use_dense_shaping = True
+        self.block_three_bonus = 0.12
+        self.block_four_bonus = 0.35
         
         if self.render_mode == 'human':
             from gameboard import GomokuGame
@@ -57,6 +59,8 @@ class GomokuEnv:
         if not valid_move:
             # PENALTY: Invalid moves end the episode
             return self.logic.board.copy(), -10, True, {"result": "Invalid"}
+
+        opp_threat_before = self._board_max_chain_length(-1) if self.use_dense_shaping else 0
             
         success, msg = self.logic.step(row, col, 1)
         
@@ -72,6 +76,12 @@ class GomokuEnv:
             # Encourage building longer contiguous lines.
             agent_chain = self._max_chain_length(row, col, 1)
             dense_reward += 0.04 * max(0, agent_chain - 1)
+
+            opp_threat_after = self._board_max_chain_length(-1)
+            if opp_threat_before >= 4 and opp_threat_after < 4:
+                dense_reward += self.block_four_bonus
+            elif opp_threat_before >= 3 and opp_threat_after < 3:
+                dense_reward += self.block_three_bonus
 
         # --- 2. OPPONENT MOVE (White / -1) ---
         empty_cells = list(zip(*np.where(self.logic.board == 0)))
@@ -120,6 +130,13 @@ class GomokuEnv:
 
             best = max(best, count)
 
+        return best
+
+    def _board_max_chain_length(self, player):
+        best = 0
+        positions = np.argwhere(self.logic.board == player)
+        for row, col in positions:
+            best = max(best, self._max_chain_length(int(row), int(col), player))
         return best
 
     def render(self):

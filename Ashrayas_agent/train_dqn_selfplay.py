@@ -329,14 +329,18 @@ def copy_state_dict_to_cpu(model):
     return {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
 
 
-def sample_opponent_mode(opponent_pool, current_prob, pool_prob):
-    random_prob = max(0.0, 1.0 - current_prob - pool_prob)
+def sample_opponent_mode(opponent_pool, current_prob, pool_prob, tactical_prob):
+    random_prob = max(0.0, 1.0 - current_prob - pool_prob - tactical_prob)
     modes = ["current", "random"]
     weights = [max(0.0, current_prob), random_prob]
 
     if len(opponent_pool) > 0 and pool_prob > 0.0:
         modes.append("pool")
         weights.append(pool_prob)
+
+    if tactical_prob > 0.0:
+        modes.append("tactical")
+        weights.append(tactical_prob)
 
     total = sum(weights)
     if total <= 0.0:
@@ -372,9 +376,56 @@ def _max_chain_length(board, row, col, player):
     return best
 
 
-def play_policy_turn(policy_net, logic, player, last_move, epsilon, device, model_arch, random_policy=False):
-    if random_policy:
+def _board_max_chain_length(board, player):
+    best = 0
+    positions = np.argwhere(board == player)
+    for row, col in positions:
+        best = max(best, _max_chain_length(board, int(row), int(col), player))
+    return best
+
+
+def is_immediate_winning_move(board, action, player):
+    row, col = divmod(int(action), board.shape[0])
+    if board[row, col] != 0:
+        return False
+
+    board[row, col] = player
+    is_win = _max_chain_length(board, row, col, player) >= 5
+    board[row, col] = 0
+    return is_win
+
+
+def get_immediate_winning_actions(board, player):
+    valid_actions = get_valid_actions(board)
+    winning_actions = []
+
+    for action in valid_actions:
+        if is_immediate_winning_move(board, action, player):
+            winning_actions.append(int(action))
+
+    return winning_actions
+
+
+def select_tactical_action(policy_net, state, current_player, last_move, epsilon, device, model_arch):
+    own_wins = get_immediate_winning_actions(state, current_player)
+    if own_wins:
+        return int(random.choice(own_wins))
+
+    opponent_wins = get_immediate_winning_actions(state, -current_player)
+    if opponent_wins:
+        return int(random.choice(opponent_wins))
+
+    if policy_net is None:
+        return select_random_action(state)
+
+    return select_action(policy_net, state, current_player, last_move, epsilon, device, model_arch)
+
+
+def play_policy_turn(policy_net, logic, player, last_move, epsilon, device, model_arch, turn_mode="policy"):
+    if turn_mode == "random":
         action = select_random_action(logic.board)
+    elif turn_mode == "tactical":
+        action = select_tactical_action(policy_net, logic.board, player, last_move, epsilon, device, model_arch)
     else:
         action = select_action(policy_net, logic.board, player, last_move, epsilon, device, model_arch)
 
@@ -412,11 +463,23 @@ def run_self_play_episode(
     move_count = 0
     transitions = []
     last_move = -1
+    block_three_bonus = 0.12
+    block_four_bonus = 0.35
 
     if learning_player == -1:
-        opener_is_random = opponent_mode == "random"
-        opener_net = None if opener_is_random else opponent_net
-        opener_eps = 1.0 if opener_is_random else opponent_epsilon
+        if opponent_mode == "random":
+            opener_mode = "random"
+            opener_net = None
+            opener_eps = 1.0
+        elif opponent_mode == "tactical":
+            opener_mode = "tactical"
+            opener_net = opponent_net
+            opener_eps = opponent_epsilon
+        else:
+            opener_mode = "policy"
+            opener_net = opponent_net
+            opener_eps = opponent_epsilon
+
         opponent_action, opponent_reward, done, info = play_policy_turn(
             opener_net,
             logic,
@@ -425,16 +488,17 @@ def run_self_play_episode(
             opener_eps,
             device,
             model_arch,
-            random_policy=opener_is_random,
+            turn_mode=opener_mode,
         )
         if opponent_action is not None:
             last_move = opponent_action
         if done:
             episode_reward += -opponent_reward if info.get("result") == "Win" else opponent_reward
-            return transitions, episode_reward, move_count, learning_player
+            return transitions, episode_reward, move_count, learning_player, opponent_mode
 
     done = False
     while not done:
+        opponent_threat_before = _board_max_chain_length(logic.board, opponent_player)
         encoded_state = encode_state(logic.board, learning_player, last_move, model_arch)
         action, own_reward, done, _ = play_policy_turn(
             policy_net, logic, learning_player, last_move, epsilon, device, model_arch
@@ -447,6 +511,12 @@ def run_self_play_episode(
             break
 
         last_move = action
+        opponent_threat_after = _board_max_chain_length(logic.board, opponent_player)
+        if opponent_threat_before >= 4 and opponent_threat_after < 4:
+            own_reward += block_four_bonus
+        elif opponent_threat_before >= 3 and opponent_threat_after < 3:
+            own_reward += block_three_bonus
+
         if done:
             next_state = encode_state(logic.board, learning_player, last_move, model_arch)
             transitions.append(
@@ -463,7 +533,7 @@ def run_self_play_episode(
             1.0 if opponent_mode == "random" else opponent_epsilon,
             device,
             model_arch,
-            random_policy=(opponent_mode == "random"),
+            turn_mode=("tactical" if opponent_mode == "tactical" else ("random" if opponent_mode == "random" else "policy")),
         )
         if opponent_action is not None:
             last_move = opponent_action
@@ -552,6 +622,7 @@ def train_self_play(
     use_symmetry_augmentation=True,
     opponent_current_prob=0.4,
     opponent_pool_prob=0.4,
+    opponent_tactical_prob=0.15,
     opponent_epsilon=0.03,
     opponent_pool_size=12,
     opponent_pool_update_every=500,
@@ -584,7 +655,7 @@ def train_self_play(
     min_replay_size = max(batch_size, warmup_steps)
     best_eval_win_rate = float(init_meta.get("best_eval_win_rate", -1.0))
     opponent_pool = deque(maxlen=opponent_pool_size)
-    opponent_mode_counts = {"current": 0, "pool": 0, "random": 0}
+    opponent_mode_counts = {"current": 0, "pool": 0, "random": 0, "tactical": 0}
 
     opponent_net = build_model(resolved_model_arch, board_size, action_dim).to(device)
     opponent_net.eval()
@@ -612,13 +683,20 @@ def train_self_play(
         if opponent_pool_update_every > 0 and episode % opponent_pool_update_every == 0:
             opponent_pool.append(copy_state_dict_to_cpu(policy_net))
 
-        opponent_mode = sample_opponent_mode(opponent_pool, opponent_current_prob, opponent_pool_prob)
+        opponent_mode = sample_opponent_mode(
+            opponent_pool,
+            opponent_current_prob,
+            opponent_pool_prob,
+            opponent_tactical_prob,
+        )
         if opponent_mode == "pool" and len(opponent_pool) > 0:
             sampled_state_dict = random.choice(list(opponent_pool))
             opponent_net.load_state_dict(sampled_state_dict)
             opponent_net.eval()
             selected_opponent_net = opponent_net
         elif opponent_mode == "current":
+            selected_opponent_net = policy_net
+        elif opponent_mode == "tactical":
             selected_opponent_net = policy_net
         else:
             selected_opponent_net = None
@@ -690,10 +768,11 @@ def train_self_play(
             print(
                 f"[Eval @ ep {episode}] W/D/L: {wins}/{draws}/{losses} "
                 f"| Win rate: {win_rate:.3f} "
-                f"| Opp mix (cur/pool/rnd): "
+                f"| Opp mix (cur/pool/rnd/tac): "
                 f"{opponent_mode_counts['current']}/"
                 f"{opponent_mode_counts['pool']}/"
                 f"{opponent_mode_counts['random']}"
+                f"/{opponent_mode_counts['tactical']}"
             )
 
             if win_rate > best_eval_win_rate:
@@ -711,6 +790,7 @@ def train_self_play(
                         "training_mode": "self_play",
                         "opponent_current_prob": opponent_current_prob,
                         "opponent_pool_prob": opponent_pool_prob,
+                        "opponent_tactical_prob": opponent_tactical_prob,
                         "opponent_epsilon": opponent_epsilon,
                         "opponent_pool_size": opponent_pool_size,
                     },
@@ -730,6 +810,7 @@ def train_self_play(
             "training_mode": "self_play",
             "opponent_current_prob": opponent_current_prob,
             "opponent_pool_prob": opponent_pool_prob,
+            "opponent_tactical_prob": opponent_tactical_prob,
             "opponent_epsilon": opponent_epsilon,
             "opponent_pool_size": opponent_pool_size,
         },
@@ -766,6 +847,12 @@ def parse_args():
         type=float,
         default=0.4,
         help="Probability of using a historical snapshot opponent from the pool.",
+    )
+    parser.add_argument(
+        "--opponent-tactical-prob",
+        type=float,
+        default=0.15,
+        help="Probability of using a tactical opponent (win-now/block-now) in an episode.",
     )
     parser.add_argument(
         "--opponent-epsilon",
@@ -833,6 +920,7 @@ if __name__ == "__main__":
         step_penalty=args.step_penalty,
         opponent_current_prob=args.opponent_current_prob,
         opponent_pool_prob=args.opponent_pool_prob,
+        opponent_tactical_prob=args.opponent_tactical_prob,
         opponent_epsilon=args.opponent_epsilon,
         opponent_pool_size=args.opponent_pool_size,
         opponent_pool_update_every=args.opponent_pool_update_every,
