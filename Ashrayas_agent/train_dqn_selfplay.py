@@ -742,7 +742,7 @@ def train_self_play(
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Continue Gomoku DQN training via self-play")
-    parser.add_argument("--episodes", type=int, default=25_000)
+    parser.add_argument("--episodes", type=int, default=25_000) #15000
     parser.add_argument("--board-size", type=int, default=BOARD_SIZE)
     parser.add_argument("--gamma", type=float, default=0.99)
     parser.add_argument("--lr", type=float, default=1e-4)
