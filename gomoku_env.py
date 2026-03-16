@@ -25,7 +25,7 @@ class GomokuEnv:
         self.action_space_n = size * size
         self.observation_space_shape = (size, size)  # Board state shape
         self.render_mode = render_mode
-        self.step_penalty = -0.005
+        self.step_penalty = -0.015
         self.win_reward = 10.0
         self.loss_reward = -10.0
         self.draw_reward = 0.0
