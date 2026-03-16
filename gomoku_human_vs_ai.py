@@ -164,11 +164,9 @@ def _resolve_checkpoint_path(user_path):
 
     workspace_root = Path(__file__).resolve().parent
     candidates = [
-        workspace_root / "dqn_gomoku_selfplay.pt",
-        workspace_root / "dqn_gomoku_1.pt",
-        workspace_root / "Ashrayas_agent" / "dqn_gomoku_best.pt",
-        workspace_root / "Ashrayas_agent" / "dqn_gomoku.pt",
-        workspace_root / "Ashrayas_agent" / "dqn_gomoku_bad.pt",
+        #workspace_root / "dqn_gomoku_selfplay_new.pt",
+        #workspace_root / "dqn_gomoku_random_good.pt",
+        workspace_root / "dqn_gomoku_selfplay_decent.pt",
     ]
 
     return next((p for p in candidates if p.exists()), None)
