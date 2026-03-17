@@ -358,8 +358,11 @@ def evaluate_policy_phase1(policy_net, board_size, games, device):
             action = select_action(policy_net, state, 1, last_move, epsilon=0.0, device=device, board_size=board_size)
             next_state, _, done, info = env.step(action)
             state = next_state.astype(np.float32)
-            if action is not None:
-                last_move = action
+            next_last_move = info.get("opponent_action")
+            if next_last_move is None and action is not None:
+                next_last_move = action
+            if next_last_move is not None:
+                last_move = int(next_last_move)
 
         result = info.get("result", "")
         if result == "Win":
@@ -383,7 +386,7 @@ def train_phase1_random_opponent(
     target_update_every=1_000,
     epsilon_start=1.0,
     epsilon_end=0.05,
-    epsilon_decay_steps=180_000,
+    epsilon_decay_steps=300_000,
     train_every=4,
     use_symmetry_augmentation=True,
     eval_every_episodes=500,
@@ -421,20 +424,27 @@ def train_phase1_random_opponent(
         last_move = -1
 
         while not done:
+            prev_last_move = last_move
             epsilon = epsilon_end + (epsilon_start - epsilon_end) * max(
                 0.0, (epsilon_decay_steps - global_step) / epsilon_decay_steps
             )
 
-            action = select_action(policy_net, state, 1, last_move, epsilon, device, board_size)
-            next_state, reward, done, _ = env.step(action)
+            action = select_action(policy_net, state, 1, prev_last_move, epsilon, device, board_size)
+            next_state, reward, done, info = env.step(action)
             next_state = next_state.astype(np.float32)
-            
-            if action is not None:
-                last_move = action
 
             # Encode states with 4-plane representation
-            encoded_state = encode_state(state, 1, last_move, board_size)
-            encoded_next_state = encode_state(next_state, 1, last_move, board_size)
+            encoded_state = encode_state(state, 1, prev_last_move, board_size)
+
+            next_last_move = info.get("opponent_action")
+            if next_last_move is None and action is not None:
+                next_last_move = action
+            encoded_next_state = encode_state(
+                next_state,
+                1,
+                int(next_last_move) if next_last_move is not None else prev_last_move,
+                board_size,
+            )
             
             replay_buffer.add(
                 encoded_state.flatten(),
@@ -446,6 +456,8 @@ def train_phase1_random_opponent(
             )
 
             state = next_state
+            if next_last_move is not None:
+                last_move = int(next_last_move)
             episode_reward += reward
             global_step += 1
 
@@ -619,6 +631,24 @@ def sample_opponent_mode(opponent_pool, current_prob, pool_prob, tactical_prob):
     return random.choices(modes, weights=normalized, k=1)[0]
 
 
+def apply_probability_jitter(current_prob, pool_prob, tactical_prob, jitter):
+    if jitter <= 0.0:
+        return current_prob, pool_prob, tactical_prob
+
+    cur = max(0.0, current_prob + random.uniform(-jitter, jitter))
+    pool = max(0.0, pool_prob + random.uniform(-jitter, jitter))
+    tac = max(0.0, tactical_prob + random.uniform(-jitter, jitter))
+
+    total = cur + pool + tac
+    if total > 1.0 and total > 0.0:
+        scale = 1.0 / total
+        cur *= scale
+        pool *= scale
+        tac *= scale
+
+    return cur, pool, tac
+
+
 def run_self_play_episode(
     policy_net,
     board_size,
@@ -628,6 +658,8 @@ def run_self_play_episode(
     opponent_net,
     opponent_mode,
     opponent_epsilon,
+    immediate_block_bonus=0.9,
+    immediate_blunder_penalty=0.6,
 ):
     """Run one self-play episode."""
     logic = GomokuLogic(size=board_size)
@@ -673,6 +705,7 @@ def run_self_play_episode(
 
     done = False
     while not done:
+        opponent_immediate_before = len(get_immediate_winning_actions(logic.board, opponent_player))
         opponent_threat_before = _board_max_chain_length(logic.board, opponent_player)
         encoded_state = encode_state(logic.board, learning_player, last_move, board_size)
         action, own_reward, done, _ = play_policy_turn(
@@ -691,6 +724,12 @@ def run_self_play_episode(
             own_reward += block_four_bonus
         elif opponent_threat_before >= 3 and opponent_threat_after < 3:
             own_reward += block_three_bonus
+
+        opponent_immediate_after = len(get_immediate_winning_actions(logic.board, opponent_player))
+        if opponent_immediate_before > 0 and opponent_immediate_after == 0:
+            own_reward += immediate_block_bonus
+        if opponent_immediate_after > 0:
+            own_reward -= immediate_blunder_penalty
 
         if done:
             next_state = encode_state(logic.board, learning_player, last_move, board_size)
@@ -788,21 +827,27 @@ def train_phase2_self_play(
     gamma=0.99,
     lr=1e-4,
     batch_size=128,
-    replay_capacity=100_000,
+    replay_capacity=300_000,
     warmup_steps=5_000,
     target_update_every=1_000,
-    epsilon_start=0.2,
-    epsilon_end=0.03,
-    epsilon_decay_steps=120_000,
+    epsilon_start=0.35,
+    epsilon_end=0.08,
+    epsilon_decay_steps=600_000,
     train_every=4,
     step_penalty=-0.005,
     use_symmetry_augmentation=True,
-    opponent_current_prob=0.4,
-    opponent_pool_prob=0.4,
-    opponent_tactical_prob=0.15,
-    opponent_epsilon=0.03,
-    opponent_pool_size=12,
-    opponent_pool_update_every=500,
+    opponent_current_prob=0.25,
+    opponent_pool_prob=0.45,
+    opponent_tactical_prob=0.25,
+    opponent_epsilon=0.08,
+    opponent_pool_size=24,
+    opponent_pool_update_every=250,
+    opponent_prob_jitter=0.08,
+    epsilon_reheat_every=2_000,
+    epsilon_reheat_boost=0.08,
+    epsilon_reheat_duration=200,
+    immediate_block_bonus=0.9,
+    immediate_blunder_penalty=0.6,
     eval_every_episodes=500,
     eval_games=100,
     seed=42,
@@ -846,18 +891,32 @@ def train_phase2_self_play(
     resolved_best_save_path.parent.mkdir(parents=True, exist_ok=True)
 
     for episode in range(1, episodes + 1):
-        epsilon = epsilon_end + (epsilon_start - epsilon_end) * max(
+        base_epsilon = epsilon_end + (epsilon_start - epsilon_end) * max(
             0.0, (epsilon_decay_steps - global_step) / epsilon_decay_steps
         )
+        epsilon = base_epsilon
+        if (
+            epsilon_reheat_every > 0
+            and epsilon_reheat_duration > 0
+            and ((episode - 1) % epsilon_reheat_every) < epsilon_reheat_duration
+        ):
+            epsilon = min(0.5, epsilon + epsilon_reheat_boost)
 
         if opponent_pool_update_every > 0 and episode % opponent_pool_update_every == 0:
             opponent_pool.append(copy_state_dict_to_cpu(policy_net))
 
-        opponent_mode = sample_opponent_mode(
-            opponent_pool,
+        jittered_current, jittered_pool, jittered_tactical = apply_probability_jitter(
             opponent_current_prob,
             opponent_pool_prob,
             opponent_tactical_prob,
+            opponent_prob_jitter,
+        )
+
+        opponent_mode = sample_opponent_mode(
+            opponent_pool,
+            jittered_current,
+            jittered_pool,
+            jittered_tactical,
         )
         if opponent_mode == "pool" and len(opponent_pool) > 0:
             sampled_state_dict = random.choice(list(opponent_pool))
@@ -880,6 +939,8 @@ def train_phase2_self_play(
             selected_opponent_net,
             opponent_mode,
             opponent_epsilon,
+            immediate_block_bonus=immediate_block_bonus,
+            immediate_blunder_penalty=immediate_blunder_penalty,
         )
         opponent_mode_counts[used_opponent_mode] += 1
 
@@ -1001,24 +1062,30 @@ def train_unified_pipeline(
     gamma=0.99,
     lr=1e-4,
     batch_size=128,
-    replay_capacity=100_000,
+    replay_capacity=300_000,
     warmup_steps=5_000,
     target_update_every=1_000,
     phase1_epsilon_start=1.0,
-    phase1_epsilon_end=0.05,
-    phase1_epsilon_decay_steps=180_000,
-    phase2_epsilon_start=0.2,
-    phase2_epsilon_end=0.03,
-    phase2_epsilon_decay_steps=120_000,
+    phase1_epsilon_end=0.10,
+    phase1_epsilon_decay_steps=300_000,
+    phase2_epsilon_start=0.35,
+    phase2_epsilon_end=0.08,
+    phase2_epsilon_decay_steps=600_000,
     train_every=4,
     step_penalty=-0.005,
     use_symmetry_augmentation=True,
-    opponent_current_prob=0.4,
-    opponent_pool_prob=0.4,
-    opponent_tactical_prob=0.15,
-    opponent_epsilon=0.03,
-    opponent_pool_size=12,
-    opponent_pool_update_every=500,
+    opponent_current_prob=0.25,
+    opponent_pool_prob=0.45,
+    opponent_tactical_prob=0.25,
+    opponent_epsilon=0.08,
+    opponent_pool_size=24,
+    opponent_pool_update_every=250,
+    opponent_prob_jitter=0.08,
+    epsilon_reheat_every=2_000,
+    epsilon_reheat_boost=0.08,
+    epsilon_reheat_duration=200,
+    immediate_block_bonus=0.9,
+    immediate_blunder_penalty=0.6,
     eval_every_episodes=500,
     eval_games=100,
     seed=42,
@@ -1078,6 +1145,12 @@ def train_unified_pipeline(
         opponent_epsilon=opponent_epsilon,
         opponent_pool_size=opponent_pool_size,
         opponent_pool_update_every=opponent_pool_update_every,
+        opponent_prob_jitter=opponent_prob_jitter,
+        epsilon_reheat_every=epsilon_reheat_every,
+        epsilon_reheat_boost=epsilon_reheat_boost,
+        epsilon_reheat_duration=epsilon_reheat_duration,
+        immediate_block_bonus=immediate_block_bonus,
+        immediate_blunder_penalty=immediate_blunder_penalty,
         eval_every_episodes=eval_every_episodes,
         eval_games=eval_games,
         seed=seed,
@@ -1114,7 +1187,7 @@ def parse_args():
     parser.add_argument("--gamma", type=float, default=0.99)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--batch-size", type=int, default=128)
-    parser.add_argument("--replay-capacity", type=int, default=100_000)
+    parser.add_argument("--replay-capacity", type=int, default=300_000)
     parser.add_argument("--warmup-steps", type=int, default=5_000)
     parser.add_argument("--target-update-every", type=int, default=1_000)
     parser.add_argument("--train-every", type=int, default=4)
@@ -1122,25 +1195,37 @@ def parse_args():
     
     # Phase 1 epsilon schedule
     parser.add_argument("--phase1-epsilon-start", type=float, default=1.0)
-    parser.add_argument("--phase1-epsilon-end", type=float, default=0.05)
-    parser.add_argument("--phase1-epsilon-decay-steps", type=int, default=180_000)
+    parser.add_argument("--phase1-epsilon-end", type=float, default=0.10)
+    parser.add_argument("--phase1-epsilon-decay-steps", type=int, default=300_000)
     
     # Phase 2 epsilon schedule
-    parser.add_argument("--phase2-epsilon-start", type=float, default=0.2)
-    parser.add_argument("--phase2-epsilon-end", type=float, default=0.03)
-    parser.add_argument("--phase2-epsilon-decay-steps", type=int, default=120_000)
+    parser.add_argument("--phase2-epsilon-start", type=float, default=0.35)
+    parser.add_argument("--phase2-epsilon-end", type=float, default=0.08)
+    parser.add_argument("--phase2-epsilon-decay-steps", type=int, default=600_000)
     
     # Phase 2 opponent configuration
     parser.add_argument("--step-penalty", type=float, default=-0.005)
-    parser.add_argument("--opponent-current-prob", type=float, default=0.4,
+    parser.add_argument("--opponent-current-prob", type=float, default=0.25,
                         help="Probability of using current policy as opponent")
-    parser.add_argument("--opponent-pool-prob", type=float, default=0.4,
+    parser.add_argument("--opponent-pool-prob", type=float, default=0.45,
                         help="Probability of using pool opponent")
-    parser.add_argument("--opponent-tactical-prob", type=float, default=0.15,
+    parser.add_argument("--opponent-tactical-prob", type=float, default=0.25,
                         help="Probability of using tactical opponent")
-    parser.add_argument("--opponent-epsilon", type=float, default=0.03)
-    parser.add_argument("--opponent-pool-size", type=int, default=12)
-    parser.add_argument("--opponent-pool-update-every", type=int, default=500)
+    parser.add_argument("--opponent-epsilon", type=float, default=0.08)
+    parser.add_argument("--opponent-pool-size", type=int, default=24)
+    parser.add_argument("--opponent-pool-update-every", type=int, default=250)
+    parser.add_argument("--opponent-prob-jitter", type=float, default=0.08,
+                        help="Per-episode jitter applied to opponent mode probabilities")
+    parser.add_argument("--epsilon-reheat-every", type=int, default=2_000,
+                        help="Reheat exploration every N episodes in phase 2")
+    parser.add_argument("--epsilon-reheat-boost", type=float, default=0.08,
+                        help="Additional epsilon during reheat windows")
+    parser.add_argument("--epsilon-reheat-duration", type=int, default=200,
+                        help="Number of episodes per reheat window")
+    parser.add_argument("--immediate-block-bonus", type=float, default=0.9,
+                        help="Bonus when an immediate opponent win threat is removed")
+    parser.add_argument("--immediate-blunder-penalty", type=float, default=0.6,
+                        help="Penalty when immediate opponent win threats remain")
     
     # Evaluation
     parser.add_argument("--eval-every-episodes", type=int, default=500)
@@ -1184,6 +1269,12 @@ if __name__ == "__main__":
         opponent_epsilon=args.opponent_epsilon,
         opponent_pool_size=args.opponent_pool_size,
         opponent_pool_update_every=args.opponent_pool_update_every,
+        opponent_prob_jitter=args.opponent_prob_jitter,
+        epsilon_reheat_every=args.epsilon_reheat_every,
+        epsilon_reheat_boost=args.epsilon_reheat_boost,
+        epsilon_reheat_duration=args.epsilon_reheat_duration,
+        immediate_block_bonus=args.immediate_block_bonus,
+        immediate_blunder_penalty=args.immediate_blunder_penalty,
         eval_every_episodes=args.eval_every_episodes,
         eval_games=args.eval_games,
         seed=args.seed,

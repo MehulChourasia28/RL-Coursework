@@ -32,6 +32,8 @@ class GomokuEnv:
         self.use_dense_shaping = True
         self.block_three_bonus = 0.12
         self.block_four_bonus = 0.35
+        self.immediate_block_bonus = 0.9
+        self.immediate_blunder_penalty = 0.6
         
         if self.render_mode == 'human':
             from gameboard import GomokuGame
@@ -50,17 +52,23 @@ class GomokuEnv:
         4. Check if Opponent won.
         5. Return new state, reward, done, info.
         """
-        row = action // self.size
-        col = action % self.size
+        action_idx = int(action)
+        row = action_idx // self.size
+        col = action_idx % self.size
         
         # --- 1. AI MOVE (Black / +1) ---
         valid_move = self.logic.is_valid_move(row, col)
         
         if not valid_move:
             # PENALTY: Invalid moves end the episode
-            return self.logic.board.copy(), -10, True, {"result": "Invalid"}
+            return self.logic.board.copy(), -10, True, {
+                "result": "Invalid",
+                "agent_action": action_idx,
+                "opponent_action": None,
+            }
 
         opp_threat_before = self._board_max_chain_length(-1) if self.use_dense_shaping else 0
+        opp_immediate_before = self._count_immediate_winning_actions(-1) if self.use_dense_shaping else 0
             
         success, msg = self.logic.step(row, col, 1)
         
@@ -69,7 +77,11 @@ class GomokuEnv:
                 reward = self.win_reward
             else:  # Draw
                 reward = self.draw_reward
-            return self.logic.board.copy(), reward, True, {"result": msg}
+            return self.logic.board.copy(), reward, True, {
+                "result": msg,
+                "agent_action": action_idx,
+                "opponent_action": None,
+            }
 
         dense_reward = 0.0
         if self.use_dense_shaping:
@@ -83,21 +95,40 @@ class GomokuEnv:
             elif opp_threat_before >= 3 and opp_threat_after < 3:
                 dense_reward += self.block_three_bonus
 
+            opp_immediate_after = self._count_immediate_winning_actions(-1)
+            if opp_immediate_before > 0 and opp_immediate_after == 0:
+                dense_reward += self.immediate_block_bonus
+            if opp_immediate_after > 0:
+                dense_reward -= self.immediate_blunder_penalty
+
         # --- 2. OPPONENT MOVE (White / -1) ---
         empty_cells = list(zip(*np.where(self.logic.board == 0)))
         if not empty_cells:
-            return self.logic.board.copy(), 0, True, {"result": "Draw"}
+            return self.logic.board.copy(), 0, True, {
+                "result": "Draw",
+                "agent_action": action_idx,
+                "opponent_action": None,
+            }
             
         opp_r, opp_c = random.choice(empty_cells)
+        opponent_action_idx = int(opp_r * self.size + opp_c)
         success, msg = self.logic.step(opp_r, opp_c, -1)
 
         if self.logic.game_over:
             if msg == "Win":
                 reward = self.loss_reward
-                return self.logic.board.copy(), reward, True, {"result": "Loss"}
+                return self.logic.board.copy(), reward, True, {
+                    "result": "Loss",
+                    "agent_action": action_idx,
+                    "opponent_action": opponent_action_idx,
+                }
             else:
                 reward = self.draw_reward
-                return self.logic.board.copy(), reward, True, {"result": "Draw"}
+                return self.logic.board.copy(), reward, True, {
+                    "result": "Draw",
+                    "agent_action": action_idx,
+                    "opponent_action": opponent_action_idx,
+                }
 
         if self.use_dense_shaping:
             # Penalize allowing the opponent to build longer contiguous lines.
@@ -105,7 +136,11 @@ class GomokuEnv:
             dense_reward -= 0.04 * max(0, opp_chain - 1)
 
         # --- 3. GAME CONTINUES ---
-        return self.logic.board.copy(), self.step_penalty + dense_reward, False, {}
+        return self.logic.board.copy(), self.step_penalty + dense_reward, False, {
+            "result": "Continue",
+            "agent_action": action_idx,
+            "opponent_action": opponent_action_idx,
+        }
 
     def _max_chain_length(self, row, col, player):
         directions = [(0, 1), (1, 0), (1, 1), (1, -1)]
@@ -138,6 +173,17 @@ class GomokuEnv:
         for row, col in positions:
             best = max(best, self._max_chain_length(int(row), int(col), player))
         return best
+
+    def _count_immediate_winning_actions(self, player):
+        count = 0
+        valid_positions = np.argwhere(self.logic.board == 0)
+        for row, col in valid_positions:
+            row_i, col_i = int(row), int(col)
+            self.logic.board[row_i, col_i] = player
+            if self._max_chain_length(row_i, col_i, player) >= 5:
+                count += 1
+            self.logic.board[row_i, col_i] = 0
+        return count
 
     def render(self):
         """Updates the PyGame window to show the current board state."""
