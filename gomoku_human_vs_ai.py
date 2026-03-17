@@ -13,13 +13,14 @@ from gomoku_config import BOARD_SIZE
 
 
 class CnnDQN(nn.Module):
-    def __init__(self, board_size=BOARD_SIZE, action_dim=None):
+    def __init__(self, board_size=BOARD_SIZE, action_dim=None, input_channels=1):
         super().__init__()
         if action_dim is None:
             action_dim = board_size * board_size
         self.board_size = board_size
+        self.input_channels = input_channels
         self.encoder = nn.Sequential(
-            nn.Conv2d(1, 64, kernel_size=3, padding=1),
+            nn.Conv2d(input_channels, 64, kernel_size=3, padding=1),
             nn.ReLU(),
             nn.Conv2d(64, 64, kernel_size=3, padding=1),
             nn.ReLU(),
@@ -147,7 +148,11 @@ def choose_action_from_state(model_bundle, board_state, device, last_move=-1):
         elif model_arch == "res_dueling":
             state_t = build_state_planes(board_state, current_player=1, last_move=last_move, device=device)
         else:
-            state_t = board_to_cnn_tensor(board_state, device)
+            input_channels = int(model_bundle.get("input_channels", 1))
+            if input_channels == 4:
+                state_t = build_state_planes(board_state, current_player=1, last_move=last_move, device=device)
+            else:
+                state_t = board_to_cnn_tensor(board_state, device)
 
         q_values = policy_net(state_t).squeeze(0)
         valid_actions_t = torch.as_tensor(valid_actions, dtype=torch.long, device=device)
@@ -168,7 +173,8 @@ def _resolve_checkpoint_path(user_path):
         #workspace_root / "dqn_gomoku_random_good.pt",
         #workspace_root / "dqn_gomoku_selfplay_decent.pt",
         #workspace_root / "dqn_gomoku.pt",
-        workspace_root / "dqn_gomoku_selfplay_good.pt",
+        #workspace_root / "dqn_gomoku_selfplay_good.pt",
+        workspace_root / "dqn_gomoku_unified.pt",
 
         
     ]
@@ -197,6 +203,27 @@ def _infer_architecture(checkpoint):
     return None
 
 
+def _infer_input_channels(checkpoint, model_arch):
+    stored = checkpoint.get("input_channels")
+    if stored is not None:
+        return int(stored)
+
+    state_dict = checkpoint["model_state_dict"]
+    if model_arch == "res_dueling":
+        weight = state_dict.get("input_conv.0.weight")
+        if weight is not None:
+            return int(weight.shape[1])
+        return 4
+
+    if model_arch == "cnn":
+        weight = state_dict.get("encoder.0.weight")
+        if weight is not None:
+            return int(weight.shape[1])
+        return 1
+
+    return None
+
+
 def load_checkpoint(device, checkpoint_path=None):
     ckpt_path = _resolve_checkpoint_path(checkpoint_path)
 
@@ -212,6 +239,7 @@ def load_checkpoint(device, checkpoint_path=None):
         board_size = int(checkpoint.get("board_size", BOARD_SIZE))
         action_dim = int(checkpoint.get("action_dim", board_size * board_size))
         model_arch = _infer_architecture(checkpoint)
+        input_channels = _infer_input_channels(checkpoint, model_arch)
 
         if board_size != BOARD_SIZE:
             print(
@@ -225,18 +253,28 @@ def load_checkpoint(device, checkpoint_path=None):
             return None, None
 
         if model_arch == "res_dueling":
-            model = ResidualDuelingDQN(board_size=board_size, action_dim=action_dim, input_channels=4).to(device)
+            model = ResidualDuelingDQN(
+                board_size=board_size,
+                action_dim=action_dim,
+                input_channels=input_channels if input_channels is not None else 4,
+            ).to(device)
         elif model_arch == "mlp":
             model = MlpDQN(board_size=board_size, action_dim=action_dim).to(device)
         else:
-            model = CnnDQN(board_size=board_size, action_dim=action_dim).to(device)
+            model = CnnDQN(
+                board_size=board_size,
+                action_dim=action_dim,
+                input_channels=input_channels if input_channels is not None else 1,
+            ).to(device)
 
         model.load_state_dict(checkpoint["model_state_dict"])
         model.eval()
-        print(f"Loaded model: {ckpt_path} | architecture: {model_arch}")
+        input_info = f" | input_channels: {input_channels}" if input_channels is not None else ""
+        print(f"Loaded model: {ckpt_path} | architecture: {model_arch}{input_info}")
         return {
             "model": model,
             "model_arch": model_arch,
+            "input_channels": input_channels,
             "board_size": board_size,
             "action_dim": action_dim,
             "path": str(ckpt_path),
