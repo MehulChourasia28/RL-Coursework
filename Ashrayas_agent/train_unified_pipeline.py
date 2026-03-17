@@ -660,6 +660,10 @@ def run_self_play_episode(
     opponent_epsilon,
     immediate_block_bonus=0.9,
     immediate_blunder_penalty=0.6,
+    own_threat_progress_bonus=0.20,
+    block_threat_progress_bonus=0.25,
+    waste_move_penalty=0.08,
+    passive_under_threat_penalty=0.25,
 ):
     """Run one self-play episode."""
     logic = GomokuLogic(size=board_size)
@@ -705,6 +709,7 @@ def run_self_play_episode(
 
     done = False
     while not done:
+        own_threat_before = _board_max_chain_length(logic.board, learning_player)
         opponent_immediate_before = len(get_immediate_winning_actions(logic.board, opponent_player))
         opponent_threat_before = _board_max_chain_length(logic.board, opponent_player)
         encoded_state = encode_state(logic.board, learning_player, last_move, board_size)
@@ -719,7 +724,20 @@ def run_self_play_episode(
             break
 
         last_move = action
+        own_threat_after = _board_max_chain_length(logic.board, learning_player)
         opponent_threat_after = _board_max_chain_length(logic.board, opponent_player)
+        own_progress = max(0, own_threat_after - own_threat_before)
+        block_progress = max(0, opponent_threat_before - opponent_threat_after)
+
+        own_reward += own_threat_progress_bonus * own_progress
+        own_reward += block_threat_progress_bonus * block_progress
+
+        if own_progress == 0 and block_progress == 0 and opponent_immediate_before == 0:
+            own_reward -= waste_move_penalty
+
+        if opponent_threat_before >= 3 and opponent_threat_after >= opponent_threat_before:
+            own_reward -= passive_under_threat_penalty
+
         if opponent_threat_before >= 4 and opponent_threat_after < 4:
             own_reward += block_four_bonus
         elif opponent_threat_before >= 3 and opponent_threat_after < 3:
@@ -848,6 +866,10 @@ def train_phase2_self_play(
     epsilon_reheat_duration=200,
     immediate_block_bonus=0.9,
     immediate_blunder_penalty=0.6,
+    own_threat_progress_bonus=0.20,
+    block_threat_progress_bonus=0.25,
+    waste_move_penalty=0.08,
+    passive_under_threat_penalty=0.25,
     eval_every_episodes=500,
     eval_games=100,
     seed=42,
@@ -941,6 +963,10 @@ def train_phase2_self_play(
             opponent_epsilon,
             immediate_block_bonus=immediate_block_bonus,
             immediate_blunder_penalty=immediate_blunder_penalty,
+            own_threat_progress_bonus=own_threat_progress_bonus,
+            block_threat_progress_bonus=block_threat_progress_bonus,
+            waste_move_penalty=waste_move_penalty,
+            passive_under_threat_penalty=passive_under_threat_penalty,
         )
         opponent_mode_counts[used_opponent_mode] += 1
 
@@ -1086,6 +1112,10 @@ def train_unified_pipeline(
     epsilon_reheat_duration=200,
     immediate_block_bonus=0.9,
     immediate_blunder_penalty=0.6,
+    own_threat_progress_bonus=0.20,
+    block_threat_progress_bonus=0.25,
+    waste_move_penalty=0.08,
+    passive_under_threat_penalty=0.25,
     eval_every_episodes=500,
     eval_games=100,
     seed=42,
@@ -1151,6 +1181,10 @@ def train_unified_pipeline(
         epsilon_reheat_duration=epsilon_reheat_duration,
         immediate_block_bonus=immediate_block_bonus,
         immediate_blunder_penalty=immediate_blunder_penalty,
+        own_threat_progress_bonus=own_threat_progress_bonus,
+        block_threat_progress_bonus=block_threat_progress_bonus,
+        waste_move_penalty=waste_move_penalty,
+        passive_under_threat_penalty=passive_under_threat_penalty,
         eval_every_episodes=eval_every_episodes,
         eval_games=eval_games,
         seed=seed,
@@ -1226,6 +1260,14 @@ def parse_args():
                         help="Bonus when an immediate opponent win threat is removed")
     parser.add_argument("--immediate-blunder-penalty", type=float, default=0.6,
                         help="Penalty when immediate opponent win threats remain")
+    parser.add_argument("--own-threat-progress-bonus", type=float, default=0.20,
+                        help="Reward scale for increasing your own maximum chain")
+    parser.add_argument("--block-threat-progress-bonus", type=float, default=0.25,
+                        help="Reward scale for reducing opponent maximum chain")
+    parser.add_argument("--waste-move-penalty", type=float, default=0.08,
+                        help="Penalty for moves that neither build threats nor defend")
+    parser.add_argument("--passive-under-threat-penalty", type=float, default=0.25,
+                        help="Penalty for not reducing opponent threats of length 3+")
     
     # Evaluation
     parser.add_argument("--eval-every-episodes", type=int, default=500)
@@ -1275,6 +1317,10 @@ if __name__ == "__main__":
         epsilon_reheat_duration=args.epsilon_reheat_duration,
         immediate_block_bonus=args.immediate_block_bonus,
         immediate_blunder_penalty=args.immediate_blunder_penalty,
+        own_threat_progress_bonus=args.own_threat_progress_bonus,
+        block_threat_progress_bonus=args.block_threat_progress_bonus,
+        waste_move_penalty=args.waste_move_penalty,
+        passive_under_threat_penalty=args.passive_under_threat_penalty,
         eval_every_episodes=args.eval_every_episodes,
         eval_games=args.eval_games,
         seed=args.seed,

@@ -34,6 +34,10 @@ class GomokuEnv:
         self.block_four_bonus = 0.35
         self.immediate_block_bonus = 0.9
         self.immediate_blunder_penalty = 0.6
+        self.own_threat_progress_bonus = 0.20
+        self.block_threat_progress_bonus = 0.25
+        self.waste_move_penalty = 0.08
+        self.passive_under_threat_penalty = 0.25
         
         if self.render_mode == 'human':
             from gameboard import GomokuGame
@@ -67,6 +71,7 @@ class GomokuEnv:
                 "opponent_action": None,
             }
 
+        own_threat_before = self._board_max_chain_length(1) if self.use_dense_shaping else 0
         opp_threat_before = self._board_max_chain_length(-1) if self.use_dense_shaping else 0
         opp_immediate_before = self._count_immediate_winning_actions(-1) if self.use_dense_shaping else 0
             
@@ -85,15 +90,28 @@ class GomokuEnv:
 
         dense_reward = 0.0
         if self.use_dense_shaping:
-            # Encourage building longer contiguous lines.
-            agent_chain = self._max_chain_length(row, col, 1)
-            dense_reward += 0.04 * max(0, agent_chain - 1)
-
+            own_threat_after = self._board_max_chain_length(1)
             opp_threat_after = self._board_max_chain_length(-1)
+
+            own_progress = max(0, own_threat_after - own_threat_before)
+            block_progress = max(0, opp_threat_before - opp_threat_after)
+
+            # Reward meaningful tactical progress: either build own threats or reduce opponent threats.
+            dense_reward += self.own_threat_progress_bonus * own_progress
+            dense_reward += self.block_threat_progress_bonus * block_progress
+
             if opp_threat_before >= 4 and opp_threat_after < 4:
                 dense_reward += self.block_four_bonus
             elif opp_threat_before >= 3 and opp_threat_after < 3:
                 dense_reward += self.block_three_bonus
+
+            # Penalize passive/non-productive moves that neither build nor defend.
+            if own_progress == 0 and block_progress == 0 and opp_immediate_before == 0:
+                dense_reward -= self.waste_move_penalty
+
+            # Penalize failing to respond when opponent already has a serious threat.
+            if opp_threat_before >= 3 and opp_threat_after >= opp_threat_before:
+                dense_reward -= self.passive_under_threat_penalty
 
             opp_immediate_after = self._count_immediate_winning_actions(-1)
             if opp_immediate_before > 0 and opp_immediate_after == 0:
