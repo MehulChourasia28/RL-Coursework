@@ -7,6 +7,14 @@ Q-value convention (negamax):
   - PUCT selection: score = -Q(child) + c_puct * P * sqrt(N_parent) / (1 + N_child)
     (negate Q because the child's player is the opponent of the current player)
   - Backup: flip sign at each edge going up the tree
+
+Tree reuse:
+  - Call reset() at the start of each new game.
+  - Call advance(action) after every move is played.
+    The child subtree for that action is kept; everything else is discarded.
+    This means subsequent get_policy() calls build on top of prior simulations
+    rather than starting from scratch — effectively multiplying search depth
+    by ~game_length for free.
 """
 
 import math
@@ -123,6 +131,31 @@ class MCTS:
         self.dir_alpha = dirichlet_alpha
         self.dir_eps   = dirichlet_epsilon
 
+        self._root: Optional[Node] = None   # persistent root for tree reuse
+
+    # ------------------------------------------------------------------
+    # Tree lifecycle
+    # ------------------------------------------------------------------
+
+    def reset(self):
+        """Call at the start of each new game to discard any previous tree."""
+        self._root = None
+
+    def advance(self, action: int):
+        """
+        After a move is played (by either player), reuse the child subtree.
+
+        If the action was already explored, the child node becomes the new root
+        and inherits all visit statistics accumulated so far.
+        If the action was never explored (shouldn't happen in normal play),
+        the tree is discarded and rebuilt from scratch on the next call.
+        """
+        if self._root is not None and action in self._root.children:
+            self._root = self._root.children[action]
+            self._root.parent = None   # detach so old nodes can be GC'd
+        else:
+            self._root = None
+
     # ------------------------------------------------------------------
     # Neural net inference
     # ------------------------------------------------------------------
@@ -149,18 +182,22 @@ class MCTS:
     ) -> np.ndarray:
         """
         Run MCTS and return a move probability distribution.
+        Reuses the existing root subtree if advance() was called after the last move.
 
         Returns:
             policy: (board_size^2,) float32 array
         """
         size = board.shape[0]
 
-        # Initialise root
-        root = Node(None, None, 1.0)
-        valid_mask = (board.flatten() == 0).astype(np.float32)
-        priors, _ = self._infer(board, player)
-        root.expand(priors, valid_mask)
-        root.N = 1   # virtual root visit so sqrt(N) is well-defined immediately
+        # Initialise root if needed (fresh game or unseen opponent move)
+        if self._root is None:
+            self._root = Node(None, None, 1.0)
+            valid_mask = (board.flatten() == 0).astype(np.float32)
+            priors, _ = self._infer(board, player)
+            self._root.expand(priors, valid_mask)
+            self._root.N = 1   # virtual root visit so sqrt(N) is well-defined
+
+        root = self._root
 
         # Dirichlet noise on root priors for training exploration
         if add_noise and root.children:
@@ -175,7 +212,6 @@ class MCTS:
             node       = root
             sim_board  = board.copy()
             sim_player = player
-            path_len   = 0
             done       = False
 
             # Selection: walk down the tree
@@ -186,14 +222,12 @@ class MCTS:
 
                 if _check_winner(sim_board, r, c, sim_player):
                     # sim_player just won.
-                    # node's player is -sim_player (they're about to move but already lost).
-                    # From node's player's perspective: value = -1.
+                    # node's player is -sim_player (about to move but already lost).
                     node.backup(-1.0)
                     done = True
                     break
 
                 sim_player = -sim_player
-                path_len  += 1
 
             if done:
                 continue
@@ -201,13 +235,11 @@ class MCTS:
             # Evaluation at leaf
             valid = (sim_board.flatten() == 0).astype(np.float32)
             if valid.sum() == 0:
-                # Draw
                 node.backup(0.0)
                 continue
 
             priors, value = self._infer(sim_board, sim_player)
             node.expand(priors, valid)
-            # value is from sim_player's perspective = node's player's perspective
             node.backup(value)
 
         # ── Build policy from visit counts ───────────────────────────────
@@ -226,3 +258,10 @@ class MCTS:
             policy = visits_t / s if s > 0 else visits / (visits.sum() + 1e-10)
 
         return policy
+
+    @property
+    def root_value(self) -> float:
+        """MCTS-backed value estimate at the current root (current player's perspective)."""
+        if self._root is None or self._root.N == 0:
+            return 0.0
+        return float(self._root.Q)

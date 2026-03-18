@@ -1,0 +1,378 @@
+Iter   1/500 | avgGameLen=23.0 | pl=2.3430 vl=0.1917 | buf=  9216 | lr=2.00e-03 | 107s
+Iter   2/500 | avgGameLen=24.2 | pl=2.5736 vl=0.2042 | buf= 18896 | lr=2.00e-03 | 223s
+Iter   3/500 | avgGameLen=20.2 | pl=2.5637 vl=0.2250 | buf= 26968 | lr=2.00e-03 | 321s
+Iter   4/500 | avgGameLen=20.8 | pl=2.6668 vl=0.2275 | buf= 35296 | lr=2.00e-03 | 424s
+Iter   5/500 | avgGameLen=17.3 | pl=2.6429 vl=0.2234 | buf= 42216 | lr=2.00e-03 | 511s
+  [eval] vs random=0.97  vs heuristic=0.00
+  [saved] iter 5
+Iter   6/500 | avgGameLen=18.2 | pl=2.7045 vl=0.2556 | buf= 49488 | lr=2.00e-03 | 741s
+Iter   7/500 | avgGameLen=16.5 | pl=2.7616 vl=0.2716 | buf= 56072 | lr=2.00e-03 | 823s
+Iter   8/500 | avgGameLen=17.3 | pl=2.8192 vl=0.2834 | buf= 62984 | lr=2.00e-03 | 909s
+Iter   9/500 | avgGameLen=16.5 | pl=2.8956 vl=0.2992 | buf= 69568 | lr=2.00e-03 | 992s
+Iter  10/500 | avgGameLen=14.3 | pl=2.9107 vl=0.3035 | buf= 75272 | lr=2.00e-03 | 1064s
+  [eval] vs random=1.00  vs heuristic=0.00
+  [saved] iter 10
+Iter  11/500 | avgGameLen=15.8 | pl=2.9618 vl=0.3091 | buf= 81600 | lr=2.00e-03 | 1284s
+Iter  12/500 | avgGameLen=15.5 | pl=3.0077 vl=0.3264 | buf= 87808 | lr=2.00e-03 | 1361s
+Iter  13/500 | avgGameLen=14.8 | pl=3.0112 vl=0.3291 | buf= 93720 | lr=2.00e-03 | 1434s
+Iter  14/500 | avgGameLen=16.1 | pl=3.0480 vl=0.3330 | buf=100160 | lr=2.00e-03 | 1514s
+Iter  15/500 | avgGameLen=13.2 | pl=3.0523 vl=0.3336 | buf=105424 | lr=2.00e-03 | 1579s
+  [eval] vs random=1.00  vs heuristic=0.00
+  [saved] iter 15
+Iter  16/500 | avgGameLen=11.7 | pl=3.0401 vl=0.3306 | buf=110096 | lr=2.00e-03 | 1726s
+Iter  17/500 | avgGameLen=14.0 | pl=3.0577 vl=0.3433 | buf=115696 | lr=1.99e-03 | 1795s
+Iter  18/500 | avgGameLen=13.4 | pl=3.0659 vl=0.3425 | buf=121072 | lr=1.99e-03 | 1863s
+Iter  19/500 | avgGameLen=14.7 | pl=3.0768 vl=0.3463 | buf=126968 | lr=1.99e-03 | 1936s
+Iter  20/500 | avgGameLen=14.9 | pl=3.0915 vl=0.3566 | buf=132928 | lr=1.99e-03 | 2011s
+  [eval] vs random=1.00  vs heuristic=0.00
+  [saved] iter 20
+Iter  21/500 | avgGameLen=13.3 | pl=3.0819 vl=0.3623 | buf=138264 | lr=1.99e-03 | 2177s
+Iter  22/500 | avgGameLen=15.1 | pl=3.0857 vl=0.3664 | buf=144320 | lr=1.99e-03 | 2253s
+Iter  23/500 | avgGameLen=12.9 | pl=3.0850 vl=0.3736 | buf=149472 | lr=1.99e-03 | 2318s
+Iter  24/500 | avgGameLen=15.2 | pl=3.0995 vl=0.3770 | buf=155536 | lr=1.99e-03 | 2393s
+Iter  25/500 | avgGameLen=13.2 | pl=3.0977 vl=0.3815 | buf=160824 | lr=1.99e-03 | 2460s
+  [eval] vs random=1.00  vs heuristic=0.00
+  [saved] iter 25
+Iter  26/500 | avgGameLen=15.0 | pl=3.1054 vl=0.3840 | buf=166824 | lr=1.99e-03 | 2625s
+Iter  27/500 | avgGameLen=12.5 | pl=3.1088 vl=0.3911 | buf=171840 | lr=1.99e-03 | 2688s
+Iter  28/500 | avgGameLen=11.9 | pl=3.1110 vl=0.3906 | buf=176600 | lr=1.99e-03 | 2750s
+Iter  29/500 | avgGameLen=12.2 | pl=3.1001 vl=0.3904 | buf=181464 | lr=1.98e-03 | 2812s
+Iter  30/500 | avgGameLen=12.4 | pl=3.1030 vl=0.3979 | buf=186416 | lr=1.98e-03 | 2874s
+  [eval] vs random=1.00  vs heuristic=0.00
+  [saved] iter 30
+Iter  31/500 | avgGameLen=12.9 | pl=3.1017 vl=0.3936 | buf=191576 | lr=1.98e-03 | 3046s
+Iter  32/500 | avgGameLen=13.2 | pl=3.0930 vl=0.3926 | buf=196856 | lr=1.98e-03 | 3113s
+Iter  33/500 | avgGameLen=14.4 | pl=3.0949 vl=0.4019 | buf=200000 | lr=1.98e-03 | 3185s
+Iter  34/500 | avgGameLen=12.1 | pl=3.0857 vl=0.4025 | buf=200000 | lr=1.98e-03 | 3246s
+Iter  35/500 | avgGameLen=12.3 | pl=3.0559 vl=0.4101 | buf=200000 | lr=1.98e-03 | 3307s
+  [eval] vs random=1.00  vs heuristic=0.00
+  [saved] iter 35
+Iter  36/500 | avgGameLen=14.0 | pl=3.0404 vl=0.4193 | buf=200000 | lr=1.98e-03 | 3488s
+Iter  37/500 | avgGameLen=11.9 | pl=3.0186 vl=0.4160 | buf=200000 | lr=1.97e-03 | 3548s
+Iter  38/500 | avgGameLen=12.8 | pl=2.9821 vl=0.4164 | buf=200000 | lr=1.97e-03 | 3611s
+Iter  39/500 | avgGameLen=11.7 | pl=2.9557 vl=0.4213 | buf=200000 | lr=1.97e-03 | 3671s
+Iter  40/500 | avgGameLen=11.0 | pl=2.9228 vl=0.4137 | buf=200000 | lr=1.97e-03 | 3726s
+  [eval] vs random=1.00  vs heuristic=0.05
+  [saved] iter 40
+Iter  41/500 | avgGameLen=13.6 | pl=2.8937 vl=0.4187 | buf=200000 | lr=1.97e-03 | 3898s
+Iter  42/500 | avgGameLen=12.7 | pl=2.8681 vl=0.4098 | buf=200000 | lr=1.97e-03 | 3962s
+Iter  43/500 | avgGameLen=14.4 | pl=2.8321 vl=0.4114 | buf=200000 | lr=1.97e-03 | 4035s
+Iter  44/500 | avgGameLen=13.2 | pl=2.7970 vl=0.4058 | buf=200000 | lr=1.96e-03 | 4100s
+Iter  45/500 | avgGameLen=14.5 | pl=2.7698 vl=0.4090 | buf=200000 | lr=1.96e-03 | 4172s
+  [eval] vs random=1.00  vs heuristic=0.07
+  [saved] iter 45
+Iter  46/500 | avgGameLen=15.2 | pl=2.7373 vl=0.4072 | buf=200000 | lr=1.96e-03 | 4372s
+Iter  47/500 | avgGameLen=12.3 | pl=2.6993 vl=0.4020 | buf=200000 | lr=1.96e-03 | 4431s
+Iter  48/500 | avgGameLen=13.9 | pl=2.6640 vl=0.3990 | buf=200000 | lr=1.96e-03 | 4498s
+Iter  49/500 | avgGameLen=13.8 | pl=2.6271 vl=0.4048 | buf=200000 | lr=1.96e-03 | 4565s
+Iter  50/500 | avgGameLen=13.6 | pl=2.5830 vl=0.3973 | buf=200000 | lr=1.95e-03 | 4631s
+  [eval] vs random=1.00  vs heuristic=0.07
+  [saved] iter 50
+Iter  51/500 | avgGameLen=12.6 | pl=2.5410 vl=0.3947 | buf=200000 | lr=1.95e-03 | 4860s
+Iter  52/500 | avgGameLen=17.5 | pl=2.5080 vl=0.3999 | buf=200000 | lr=1.95e-03 | 4945s
+Iter  53/500 | avgGameLen=18.9 | pl=2.4731 vl=0.3937 | buf=200000 | lr=1.95e-03 | 5036s
+Iter  54/500 | avgGameLen=16.8 | pl=2.4300 vl=0.4047 | buf=200000 | lr=1.95e-03 | 5118s
+Iter  55/500 | avgGameLen=19.0 | pl=2.4036 vl=0.4021 | buf=200000 | lr=1.94e-03 | 5210s
+  [eval] vs random=1.00  vs heuristic=0.23
+  [saved] iter 55
+Iter  56/500 | avgGameLen=18.4 | pl=2.3546 vl=0.3977 | buf=200000 | lr=1.94e-03 | 5450s
+Iter  57/500 | avgGameLen=18.3 | pl=2.3235 vl=0.3956 | buf=200000 | lr=1.94e-03 | 5540s
+Iter  58/500 | avgGameLen=20.1 | pl=2.2814 vl=0.3865 | buf=200000 | lr=1.94e-03 | 5636s
+Iter  59/500 | avgGameLen=17.5 | pl=2.2372 vl=0.3801 | buf=200000 | lr=1.94e-03 | 5721s
+Iter  60/500 | avgGameLen=16.7 | pl=2.1940 vl=0.3762 | buf=200000 | lr=1.93e-03 | 5802s
+  [eval] vs random=1.00  vs heuristic=0.25
+  [saved] iter 60
+Iter  61/500 | avgGameLen=20.0 | pl=2.1462 vl=0.3817 | buf=200000 | lr=1.93e-03 | 6047s
+Iter  62/500 | avgGameLen=22.0 | pl=2.0987 vl=0.3757 | buf=200000 | lr=1.93e-03 | 6151s
+Iter  63/500 | avgGameLen=23.2 | pl=2.0567 vl=0.3655 | buf=200000 | lr=1.93e-03 | 6260s
+Iter  64/500 | avgGameLen=18.7 | pl=2.0230 vl=0.3501 | buf=200000 | lr=1.92e-03 | 6350s
+Iter  65/500 | avgGameLen=26.5 | pl=1.9628 vl=0.3591 | buf=200000 | lr=1.92e-03 | 6475s
+  [eval] vs random=1.00  vs heuristic=0.35
+  [saved] iter 65
+Iter  66/500 | avgGameLen=25.5 | pl=1.9298 vl=0.3563 | buf=200000 | lr=1.92e-03 | 6770s
+Iter  67/500 | avgGameLen=23.3 | pl=1.8996 vl=0.3456 | buf=200000 | lr=1.92e-03 | 6876s
+Iter  68/500 | avgGameLen=23.1 | pl=1.8671 vl=0.3470 | buf=200000 | lr=1.91e-03 | 6987s
+Iter  69/500 | avgGameLen=24.4 | pl=1.8301 vl=0.3335 | buf=200000 | lr=1.91e-03 | 7104s
+Iter  70/500 | avgGameLen=17.0 | pl=1.7935 vl=0.3197 | buf=200000 | lr=1.91e-03 | 7187s
+  [eval] vs random=1.00  vs heuristic=0.55
+  [saved] iter 70
+Iter  71/500 | avgGameLen=21.2 | pl=1.7706 vl=0.3200 | buf=200000 | lr=1.91e-03 | 7433s
+Iter  72/500 | avgGameLen=22.6 | pl=1.7429 vl=0.3192 | buf=200000 | lr=1.90e-03 | 7536s
+Iter  73/500 | avgGameLen=16.6 | pl=1.7185 vl=0.3072 | buf=200000 | lr=1.90e-03 | 7612s
+Iter  74/500 | avgGameLen=27.5 | pl=1.7087 vl=0.3058 | buf=200000 | lr=1.90e-03 | 7735s
+Iter  75/500 | avgGameLen=24.1 | pl=1.6998 vl=0.3003 | buf=200000 | lr=1.90e-03 | 7846s
+  [eval] vs random=1.00  vs heuristic=0.70
+  [saved] iter 75
+Iter  76/500 | avgGameLen=20.4 | pl=1.6758 vl=0.2903 | buf=200000 | lr=1.89e-03 | 8084s
+Iter  77/500 | avgGameLen=30.2 | pl=1.6677 vl=0.2815 | buf=200000 | lr=1.89e-03 | 8219s
+Iter  78/500 | avgGameLen=28.7 | pl=1.6409 vl=0.2683 | buf=200000 | lr=1.89e-03 | 8347s
+Iter  79/500 | avgGameLen=25.3 | pl=1.6289 vl=0.2632 | buf=200000 | lr=1.89e-03 | 8462s
+Iter  80/500 | avgGameLen=28.1 | pl=1.6320 vl=0.2484 | buf=200000 | lr=1.88e-03 | 8590s
+  [eval] vs random=1.00  vs heuristic=0.70
+  [saved] iter 80
+Iter  81/500 | avgGameLen=29.0 | pl=1.6271 vl=0.2416 | buf=200000 | lr=1.88e-03 | 8881s
+Iter  82/500 | avgGameLen=25.3 | pl=1.6166 vl=0.2289 | buf=200000 | lr=1.88e-03 | 8995s
+Iter  83/500 | avgGameLen=25.4 | pl=1.6034 vl=0.2148 | buf=200000 | lr=1.87e-03 | 9110s
+Iter  84/500 | avgGameLen=32.3 | pl=1.6130 vl=0.2173 | buf=200000 | lr=1.87e-03 | 9255s
+Iter  85/500 | avgGameLen=21.6 | pl=1.6017 vl=0.2069 | buf=200000 | lr=1.87e-03 | 9352s
+  [eval] vs random=1.00  vs heuristic=0.57
+  [saved] iter 85
+Iter  86/500 | avgGameLen=25.3 | pl=1.5964 vl=0.2043 | buf=200000 | lr=1.86e-03 | 9615s
+Iter  87/500 | avgGameLen=28.0 | pl=1.5934 vl=0.2022 | buf=200000 | lr=1.86e-03 | 9741s
+Iter  88/500 | avgGameLen=30.3 | pl=1.5921 vl=0.1943 | buf=200000 | lr=1.86e-03 | 9876s
+Iter  89/500 | avgGameLen=29.1 | pl=1.5881 vl=0.1914 | buf=200000 | lr=1.86e-03 | 10011s
+Iter  90/500 | avgGameLen=23.8 | pl=1.5709 vl=0.1848 | buf=200000 | lr=1.85e-03 | 10123s
+  [eval] vs random=1.00  vs heuristic=0.45
+  [saved] iter 90
+Iter  91/500 | avgGameLen=25.8 | pl=1.5644 vl=0.1817 | buf=200000 | lr=1.85e-03 | 10464s
+Iter  92/500 | avgGameLen=31.6 | pl=1.5660 vl=0.1826 | buf=200000 | lr=1.85e-03 | 10610s
+Iter  93/500 | avgGameLen=32.1 | pl=1.5714 vl=0.1719 | buf=200000 | lr=1.84e-03 | 10758s
+Iter  94/500 | avgGameLen=29.3 | pl=1.5624 vl=0.1607 | buf=200000 | lr=1.84e-03 | 10896s
+Iter  95/500 | avgGameLen=31.7 | pl=1.5575 vl=0.1592 | buf=200000 | lr=1.84e-03 | 11044s
+  [eval] vs random=1.00  vs heuristic=0.53
+  [saved] iter 95
+Iter  96/500 | avgGameLen=34.2 | pl=1.5463 vl=0.1571 | buf=200000 | lr=1.83e-03 | 11412s
+Iter  97/500 | avgGameLen=31.7 | pl=1.5325 vl=0.1524 | buf=200000 | lr=1.83e-03 | 11561s
+Iter  98/500 | avgGameLen=32.5 | pl=1.5226 vl=0.1498 | buf=200000 | lr=1.83e-03 | 11713s
+Iter  99/500 | avgGameLen=33.0 | pl=1.5087 vl=0.1539 | buf=200000 | lr=1.82e-03 | 11867s
+Iter 100/500 | avgGameLen=32.1 | pl=1.4920 vl=0.1550 | buf=200000 | lr=1.82e-03 | 12017s
+  [eval] vs random=1.00  vs heuristic=0.78
+  [saved] iter 100
+Iter 101/500 | avgGameLen=28.7 | pl=1.4738 vl=0.1488 | buf=200000 | lr=1.82e-03 | 12352s
+Iter 102/500 | avgGameLen=25.4 | pl=1.4614 vl=0.1523 | buf=200000 | lr=1.81e-03 | 12472s
+Iter 103/500 | avgGameLen=35.0 | pl=1.4492 vl=0.1496 | buf=200000 | lr=1.81e-03 | 12635s
+Iter 104/500 | avgGameLen=36.2 | pl=1.4412 vl=0.1520 | buf=200000 | lr=1.80e-03 | 12799s
+Iter 105/500 | avgGameLen=34.2 | pl=1.4171 vl=0.1429 | buf=200000 | lr=1.80e-03 | 12954s
+  [eval] vs random=1.00  vs heuristic=0.53
+  [saved] iter 105
+Iter 106/500 | avgGameLen=29.1 | pl=1.4055 vl=0.1402 | buf=200000 | lr=1.80e-03 | 13301s
+Iter 107/500 | avgGameLen=33.7 | pl=1.3956 vl=0.1382 | buf=200000 | lr=1.79e-03 | 13456s
+Iter 108/500 | avgGameLen=32.0 | pl=1.3715 vl=0.1335 | buf=200000 | lr=1.79e-03 | 13601s
+Iter 109/500 | avgGameLen=33.5 | pl=1.3461 vl=0.1330 | buf=200000 | lr=1.79e-03 | 13755s
+Iter 110/500 | avgGameLen=38.2 | pl=1.3277 vl=0.1316 | buf=200000 | lr=1.78e-03 | 13928s
+  [eval] vs random=1.00  vs heuristic=0.53
+  [saved] iter 110
+Iter 111/500 | avgGameLen=32.6 | pl=1.3094 vl=0.1297 | buf=200000 | lr=1.78e-03 | 14286s
+Iter 112/500 | avgGameLen=38.9 | pl=1.2843 vl=0.1284 | buf=200000 | lr=1.77e-03 | 14463s
+Iter 113/500 | avgGameLen=38.7 | pl=1.2787 vl=0.1266 | buf=200000 | lr=1.77e-03 | 14638s
+Iter 114/500 | avgGameLen=36.1 | pl=1.2532 vl=0.1266 | buf=200000 | lr=1.77e-03 | 14803s
+Iter 115/500 | avgGameLen=36.7 | pl=1.2345 vl=0.1224 | buf=200000 | lr=1.76e-03 | 14970s
+  [eval] vs random=1.00  vs heuristic=0.60
+  [saved] iter 115
+Iter 116/500 | avgGameLen=39.0 | pl=1.2204 vl=0.1157 | buf=200000 | lr=1.76e-03 | 15368s
+Iter 117/500 | avgGameLen=36.7 | pl=1.2078 vl=0.1145 | buf=200000 | lr=1.75e-03 | 15530s
+Iter 118/500 | avgGameLen=37.3 | pl=1.1870 vl=0.1129 | buf=200000 | lr=1.75e-03 | 15693s
+Iter 119/500 | avgGameLen=39.7 | pl=1.1671 vl=0.1068 | buf=200000 | lr=1.75e-03 | 15866s
+Iter 120/500 | avgGameLen=35.4 | pl=1.1456 vl=0.1127 | buf=200000 | lr=1.74e-03 | 16023s
+  [eval] vs random=1.00  vs heuristic=0.65
+  [saved] iter 120
+Iter 121/500 | avgGameLen=43.8 | pl=1.1304 vl=0.1074 | buf=200000 | lr=1.74e-03 | 16393s
+Iter 122/500 | avgGameLen=48.4 | pl=1.1119 vl=0.0975 | buf=200000 | lr=1.73e-03 | 16604s
+Iter 123/500 | avgGameLen=37.7 | pl=1.0889 vl=0.1003 | buf=200000 | lr=1.73e-03 | 16769s
+Iter 124/500 | avgGameLen=38.9 | pl=1.0682 vl=0.0971 | buf=200000 | lr=1.73e-03 | 16945s
+Iter 125/500 | avgGameLen=44.0 | pl=1.0585 vl=0.0932 | buf=200000 | lr=1.72e-03 | 17135s
+  [eval] vs random=1.00  vs heuristic=0.72
+  [saved] iter 125
+Iter 126/500 | avgGameLen=46.7 | pl=1.0414 vl=0.0894 | buf=200000 | lr=1.72e-03 | 17513s
+Iter 127/500 | avgGameLen=38.6 | pl=1.0157 vl=0.0888 | buf=200000 | lr=1.71e-03 | 17681s
+Iter 128/500 | avgGameLen=29.9 | pl=0.9943 vl=0.0866 | buf=200000 | lr=1.71e-03 | 17810s
+Iter 129/500 | avgGameLen=44.7 | pl=0.9849 vl=0.0845 | buf=200000 | lr=1.70e-03 | 18004s
+Iter 130/500 | avgGameLen=35.3 | pl=0.9660 vl=0.0830 | buf=200000 | lr=1.70e-03 | 18158s
+  [eval] vs random=1.00  vs heuristic=0.50
+  [saved] iter 130
+Iter 131/500 | avgGameLen=36.1 | pl=0.9406 vl=0.0867 | buf=200000 | lr=1.70e-03 | 18504s
+Iter 132/500 | avgGameLen=33.6 | pl=0.9367 vl=0.0871 | buf=200000 | lr=1.69e-03 | 18651s
+Iter 133/500 | avgGameLen=42.2 | pl=0.9227 vl=0.0855 | buf=200000 | lr=1.69e-03 | 18840s
+Iter 134/500 | avgGameLen=32.0 | pl=0.9003 vl=0.0878 | buf=200000 | lr=1.68e-03 | 18987s
+Iter 135/500 | avgGameLen=39.2 | pl=0.8939 vl=0.0906 | buf=200000 | lr=1.68e-03 | 19162s
+  [eval] vs random=1.00  vs heuristic=0.80
+  [saved] iter 135
+Iter 136/500 | avgGameLen=40.4 | pl=0.8908 vl=0.0898 | buf=200000 | lr=1.67e-03 | 19499s
+Iter 137/500 | avgGameLen=35.6 | pl=0.8799 vl=0.0897 | buf=200000 | lr=1.67e-03 | 19659s
+Iter 138/500 | avgGameLen=38.4 | pl=0.8741 vl=0.0927 | buf=200000 | lr=1.66e-03 | 19830s
+Iter 139/500 | avgGameLen=40.7 | pl=0.8743 vl=0.0956 | buf=200000 | lr=1.66e-03 | 20012s
+Iter 140/500 | avgGameLen=36.6 | pl=0.8708 vl=0.0926 | buf=200000 | lr=1.66e-03 | 20177s
+  [eval] vs random=1.00  vs heuristic=0.72
+  [saved] iter 140
+Iter 141/500 | avgGameLen=38.1 | pl=0.8638 vl=0.0906 | buf=200000 | lr=1.65e-03 | 20522s
+Iter 142/500 | avgGameLen=37.6 | pl=0.8632 vl=0.0905 | buf=200000 | lr=1.65e-03 | 20692s
+Iter 143/500 | avgGameLen=43.7 | pl=0.8608 vl=0.0863 | buf=200000 | lr=1.64e-03 | 20887s
+Iter 144/500 | avgGameLen=39.0 | pl=0.8542 vl=0.0821 | buf=200000 | lr=1.64e-03 | 21062s
+Iter 145/500 | avgGameLen=46.0 | pl=0.8511 vl=0.0829 | buf=200000 | lr=1.63e-03 | 21268s
+  [eval] vs random=1.00  vs heuristic=0.65
+  [saved] iter 145
+Iter 146/500 | avgGameLen=45.6 | pl=0.8437 vl=0.0807 | buf=200000 | lr=1.63e-03 | 21646s
+Iter 147/500 | avgGameLen=41.9 | pl=0.8319 vl=0.0747 | buf=200000 | lr=1.62e-03 | 21834s
+Iter 148/500 | avgGameLen=39.4 | pl=0.8380 vl=0.0763 | buf=200000 | lr=1.62e-03 | 22010s
+Iter 149/500 | avgGameLen=37.9 | pl=0.8152 vl=0.0728 | buf=200000 | lr=1.61e-03 | 22181s
+Iter 150/500 | avgGameLen=39.5 | pl=0.8106 vl=0.0783 | buf=200000 | lr=1.61e-03 | 22358s
+  [eval] vs random=1.00  vs heuristic=0.57
+  [saved] iter 150
+Iter 151/500 | avgGameLen=41.5 | pl=0.7960 vl=0.0758 | buf=200000 | lr=1.60e-03 | 22727s
+Iter 152/500 | avgGameLen=37.8 | pl=0.7813 vl=0.0684 | buf=200000 | lr=1.60e-03 | 22895s
+Iter 153/500 | avgGameLen=34.6 | pl=0.7813 vl=0.0729 | buf=200000 | lr=1.59e-03 | 23051s
+Iter 154/500 | avgGameLen=41.3 | pl=0.7680 vl=0.0709 | buf=200000 | lr=1.59e-03 | 23236s
+Iter 155/500 | avgGameLen=32.8 | pl=0.7564 vl=0.0678 | buf=200000 | lr=1.58e-03 | 23384s
+  [eval] vs random=1.00  vs heuristic=0.57
+  [saved] iter 155
+Iter 156/500 | avgGameLen=33.3 | pl=0.7569 vl=0.0769 | buf=200000 | lr=1.58e-03 | 23709s
+Iter 157/500 | avgGameLen=31.7 | pl=0.7488 vl=0.0755 | buf=200000 | lr=1.57e-03 | 23850s
+Iter 158/500 | avgGameLen=36.7 | pl=0.7557 vl=0.0741 | buf=200000 | lr=1.57e-03 | 24013s
+Iter 159/500 | avgGameLen=38.8 | pl=0.7568 vl=0.0763 | buf=200000 | lr=1.56e-03 | 24186s
+Iter 160/500 | avgGameLen=38.3 | pl=0.7588 vl=0.0766 | buf=200000 | lr=1.56e-03 | 24355s
+  [eval] vs random=1.00  vs heuristic=0.53
+  [saved] iter 160
+Iter 161/500 | avgGameLen=33.1 | pl=0.7579 vl=0.0815 | buf=200000 | lr=1.55e-03 | 24693s
+Iter 162/500 | avgGameLen=41.0 | pl=0.7499 vl=0.0842 | buf=200000 | lr=1.55e-03 | 24876s
+Iter 163/500 | avgGameLen=45.4 | pl=0.7493 vl=0.0784 | buf=200000 | lr=1.54e-03 | 25074s
+Iter 164/500 | avgGameLen=38.6 | pl=0.7503 vl=0.0765 | buf=200000 | lr=1.54e-03 | 25246s
+Iter 165/500 | avgGameLen=37.9 | pl=0.7495 vl=0.0763 | buf=200000 | lr=1.53e-03 | 25414s
+  [eval] vs random=1.00  vs heuristic=0.50
+  [saved] iter 165
+Iter 166/500 | avgGameLen=40.3 | pl=0.7475 vl=0.0791 | buf=200000 | lr=1.53e-03 | 25758s
+Iter 167/500 | avgGameLen=40.5 | pl=0.7431 vl=0.0792 | buf=200000 | lr=1.52e-03 | 25938s
+Iter 168/500 | avgGameLen=34.2 | pl=0.7329 vl=0.0813 | buf=200000 | lr=1.52e-03 | 26089s
+Iter 169/500 | avgGameLen=38.1 | pl=0.7294 vl=0.0764 | buf=200000 | lr=1.51e-03 | 26259s
+Iter 170/500 | avgGameLen=41.4 | pl=0.7273 vl=0.0751 | buf=200000 | lr=1.51e-03 | 26443s
+  [eval] vs random=1.00  vs heuristic=0.50
+  [saved] iter 170
+Iter 171/500 | avgGameLen=42.5 | pl=0.7084 vl=0.0793 | buf=200000 | lr=1.50e-03 | 26825s
+Iter 172/500 | avgGameLen=43.9 | pl=0.7110 vl=0.0811 | buf=200000 | lr=1.50e-03 | 27020s
+Iter 173/500 | avgGameLen=41.0 | pl=0.7018 vl=0.0765 | buf=200000 | lr=1.49e-03 | 27201s
+Iter 174/500 | avgGameLen=38.1 | pl=0.7033 vl=0.0759 | buf=200000 | lr=1.49e-03 | 27370s
+Iter 175/500 | avgGameLen=37.2 | pl=0.6881 vl=0.0753 | buf=200000 | lr=1.48e-03 | 27534s
+  [eval] vs random=1.00  vs heuristic=0.65
+  [saved] iter 175
+Iter 176/500 | avgGameLen=40.1 | pl=0.6931 vl=0.0804 | buf=200000 | lr=1.48e-03 | 27881s
+Iter 177/500 | avgGameLen=41.8 | pl=0.6894 vl=0.0806 | buf=200000 | lr=1.47e-03 | 28065s
+Iter 178/500 | avgGameLen=36.9 | pl=0.6856 vl=0.0770 | buf=200000 | lr=1.47e-03 | 28224s
+Iter 179/500 | avgGameLen=45.7 | pl=0.6784 vl=0.0741 | buf=200000 | lr=1.46e-03 | 28418s
+Iter 180/500 | avgGameLen=42.5 | pl=0.6725 vl=0.0768 | buf=200000 | lr=1.45e-03 | 28599s
+  [eval] vs random=1.00  vs heuristic=0.70
+  [saved] iter 180
+Iter 181/500 | avgGameLen=30.0 | pl=0.6669 vl=0.0753 | buf=200000 | lr=1.45e-03 | 28898s
+Iter 182/500 | avgGameLen=32.0 | pl=0.6668 vl=0.0776 | buf=200000 | lr=1.44e-03 | 29034s
+Iter 183/500 | avgGameLen=39.9 | pl=0.6539 vl=0.0716 | buf=200000 | lr=1.44e-03 | 29205s
+Iter 184/500 | avgGameLen=38.3 | pl=0.6617 vl=0.0714 | buf=200000 | lr=1.43e-03 | 29367s
+Iter 185/500 | avgGameLen=37.4 | pl=0.6575 vl=0.0746 | buf=200000 | lr=1.43e-03 | 29527s
+  [eval] vs random=1.00  vs heuristic=0.70
+  [saved] iter 185
+Iter 186/500 | avgGameLen=35.0 | pl=0.6608 vl=0.0772 | buf=200000 | lr=1.42e-03 | 29840s
+Iter 187/500 | avgGameLen=41.8 | pl=0.6528 vl=0.0794 | buf=200000 | lr=1.42e-03 | 30026s
+Iter 188/500 | avgGameLen=43.3 | pl=0.6556 vl=0.0791 | buf=200000 | lr=1.41e-03 | 30218s
+Iter 189/500 | avgGameLen=26.3 | pl=0.6443 vl=0.0768 | buf=200000 | lr=1.41e-03 | 30337s
+Iter 190/500 | avgGameLen=41.2 | pl=0.6510 vl=0.0784 | buf=200000 | lr=1.40e-03 | 30520s
+  [eval] vs random=1.00  vs heuristic=0.72
+  [saved] iter 190
+Iter 191/500 | avgGameLen=30.4 | pl=0.6467 vl=0.0802 | buf=200000 | lr=1.39e-03 | 30831s
+Iter 192/500 | avgGameLen=41.6 | pl=0.6398 vl=0.0792 | buf=200000 | lr=1.39e-03 | 31017s
+Iter 193/500 | avgGameLen=33.2 | pl=0.6366 vl=0.0769 | buf=200000 | lr=1.38e-03 | 31166s
+Iter 194/500 | avgGameLen=45.8 | pl=0.6349 vl=0.0770 | buf=200000 | lr=1.38e-03 | 31362s
+Iter 195/500 | avgGameLen=37.6 | pl=0.6231 vl=0.0769 | buf=200000 | lr=1.37e-03 | 31524s
+  [eval] vs random=1.00  vs heuristic=0.75
+  [saved] iter 195
+Iter 196/500 | avgGameLen=36.8 | pl=0.6151 vl=0.0782 | buf=200000 | lr=1.37e-03 | 31843s
+Iter 197/500 | avgGameLen=44.2 | pl=0.6136 vl=0.0776 | buf=200000 | lr=1.36e-03 | 32054s
+Iter 198/500 | avgGameLen=34.7 | pl=0.6173 vl=0.0778 | buf=200000 | lr=1.35e-03 | 32218s
+Iter 199/500 | avgGameLen=37.7 | pl=0.6151 vl=0.0794 | buf=200000 | lr=1.35e-03 | 32391s
+Iter 200/500 | avgGameLen=40.6 | pl=0.6061 vl=0.0786 | buf=200000 | lr=1.34e-03 | 32583s
+  [eval] vs random=1.00  vs heuristic=0.90
+  [saved] iter 200
+Iter 201/500 | avgGameLen=41.0 | pl=0.6122 vl=0.0836 | buf=200000 | lr=1.34e-03 | 32923s
+Iter 202/500 | avgGameLen=46.6 | pl=0.6081 vl=0.0856 | buf=200000 | lr=1.33e-03 | 33128s
+Iter 203/500 | avgGameLen=41.2 | pl=0.6029 vl=0.0827 | buf=200000 | lr=1.33e-03 | 33305s
+Iter 204/500 | avgGameLen=38.4 | pl=0.5919 vl=0.0795 | buf=200000 | lr=1.32e-03 | 33475s
+Iter 205/500 | avgGameLen=35.7 | pl=0.5879 vl=0.0806 | buf=200000 | lr=1.32e-03 | 33641s
+  [eval] vs random=1.00  vs heuristic=0.75
+  [saved] iter 205
+Iter 206/500 | avgGameLen=42.7 | pl=0.5897 vl=0.0799 | buf=200000 | lr=1.31e-03 | 33995s
+Iter 207/500 | avgGameLen=34.7 | pl=0.5962 vl=0.0801 | buf=200000 | lr=1.30e-03 | 34152s
+Iter 208/500 | avgGameLen=41.4 | pl=0.5889 vl=0.0741 | buf=200000 | lr=1.30e-03 | 34337s
+Iter 209/500 | avgGameLen=38.1 | pl=0.5904 vl=0.0722 | buf=200000 | lr=1.29e-03 | 34498s
+Iter 210/500 | avgGameLen=44.8 | pl=0.5922 vl=0.0786 | buf=200000 | lr=1.29e-03 | 34688s
+  [eval] vs random=1.00  vs heuristic=0.70
+  [saved] iter 210
+Iter 211/500 | avgGameLen=41.4 | pl=0.5879 vl=0.0786 | buf=200000 | lr=1.28e-03 | 35034s
+Iter 212/500 | avgGameLen=44.3 | pl=0.5837 vl=0.0744 | buf=200000 | lr=1.27e-03 | 35223s
+Iter 213/500 | avgGameLen=47.1 | pl=0.5882 vl=0.0679 | buf=200000 | lr=1.27e-03 | 35421s
+Iter 214/500 | avgGameLen=38.1 | pl=0.5821 vl=0.0672 | buf=200000 | lr=1.26e-03 | 35586s
+Iter 215/500 | avgGameLen=42.3 | pl=0.5801 vl=0.0649 | buf=200000 | lr=1.26e-03 | 35767s
+  [eval] vs random=1.00  vs heuristic=0.85
+  [saved] iter 215
+Iter 216/500 | avgGameLen=36.9 | pl=0.5852 vl=0.0670 | buf=200000 | lr=1.25e-03 | 36069s
+Iter 217/500 | avgGameLen=41.2 | pl=0.5841 vl=0.0678 | buf=200000 | lr=1.25e-03 | 36243s
+Iter 218/500 | avgGameLen=40.7 | pl=0.5796 vl=0.0677 | buf=200000 | lr=1.24e-03 | 36416s
+Iter 219/500 | avgGameLen=41.9 | pl=0.5773 vl=0.0655 | buf=200000 | lr=1.23e-03 | 36596s
+Iter 220/500 | avgGameLen=47.3 | pl=0.5752 vl=0.0625 | buf=200000 | lr=1.23e-03 | 36806s
+  [eval] vs random=1.00  vs heuristic=0.78
+  [saved] iter 220
+Iter 221/500 | avgGameLen=36.6 | pl=0.5727 vl=0.0625 | buf=200000 | lr=1.22e-03 | 37128s
+Iter 222/500 | avgGameLen=31.2 | pl=0.5837 vl=0.0626 | buf=200000 | lr=1.22e-03 | 37261s
+Iter 223/500 | avgGameLen=46.7 | pl=0.5809 vl=0.0646 | buf=200000 | lr=1.21e-03 | 37459s
+Iter 224/500 | avgGameLen=39.7 | pl=0.5931 vl=0.0652 | buf=200000 | lr=1.20e-03 | 37633s
+Iter 225/500 | avgGameLen=37.1 | pl=0.5873 vl=0.0633 | buf=200000 | lr=1.20e-03 | 37793s
+  [eval] vs random=1.00  vs heuristic=0.53
+  [saved] iter 225
+Iter 226/500 | avgGameLen=27.4 | pl=0.5938 vl=0.0647 | buf=200000 | lr=1.19e-03 | 38102s
+Iter 227/500 | avgGameLen=31.7 | pl=0.6035 vl=0.0716 | buf=200000 | lr=1.19e-03 | 38243s
+Iter 228/500 | avgGameLen=30.0 | pl=0.6117 vl=0.0740 | buf=200000 | lr=1.18e-03 | 38377s
+Iter 229/500 | avgGameLen=34.9 | pl=0.6086 vl=0.0763 | buf=200000 | lr=1.17e-03 | 38528s
+Iter 230/500 | avgGameLen=32.5 | pl=0.6108 vl=0.0753 | buf=200000 | lr=1.17e-03 | 38665s
+  [eval] vs random=1.00  vs heuristic=0.55
+  [saved] iter 230
+Iter 231/500 | avgGameLen=36.6 | pl=0.6314 vl=0.0765 | buf=200000 | lr=1.16e-03 | 38998s
+Iter 232/500 | avgGameLen=31.9 | pl=0.6311 vl=0.0730 | buf=200000 | lr=1.16e-03 | 39141s
+Iter 233/500 | avgGameLen=45.7 | pl=0.6303 vl=0.0728 | buf=200000 | lr=1.15e-03 | 39341s
+Iter 234/500 | avgGameLen=44.3 | pl=0.6360 vl=0.0731 | buf=200000 | lr=1.15e-03 | 39537s
+Iter 235/500 | avgGameLen=38.5 | pl=0.6259 vl=0.0715 | buf=200000 | lr=1.14e-03 | 39705s
+  [eval] vs random=1.00  vs heuristic=0.72
+  [saved] iter 235
+Iter 236/500 | avgGameLen=31.2 | pl=0.6175 vl=0.0788 | buf=200000 | lr=1.13e-03 | 40012s
+Iter 237/500 | avgGameLen=46.9 | pl=0.6274 vl=0.0776 | buf=200000 | lr=1.13e-03 | 40218s
+Iter 238/500 | avgGameLen=29.9 | pl=0.6175 vl=0.0787 | buf=200000 | lr=1.12e-03 | 40353s
+Iter 239/500 | avgGameLen=35.3 | pl=0.6219 vl=0.0806 | buf=200000 | lr=1.12e-03 | 40512s
+Iter 240/500 | avgGameLen=36.0 | pl=0.6213 vl=0.0772 | buf=200000 | lr=1.11e-03 | 40666s
+  [eval] vs random=1.00  vs heuristic=0.80
+  [saved] iter 240
+Iter 241/500 | avgGameLen=43.2 | pl=0.6074 vl=0.0693 | buf=200000 | lr=1.10e-03 | 40992s
+Iter 242/500 | avgGameLen=48.6 | pl=0.5999 vl=0.0650 | buf=200000 | lr=1.10e-03 | 41201s
+Iter 243/500 | avgGameLen=36.0 | pl=0.6037 vl=0.0670 | buf=200000 | lr=1.09e-03 | 41363s
+Iter 244/500 | avgGameLen=45.0 | pl=0.5885 vl=0.0696 | buf=200000 | lr=1.09e-03 | 41562s
+Iter 245/500 | avgGameLen=39.1 | pl=0.5793 vl=0.0710 | buf=200000 | lr=1.08e-03 | 41738s
+  [eval] vs random=1.00  vs heuristic=0.80
+  [saved] iter 245
+Iter 246/500 | avgGameLen=42.4 | pl=0.5776 vl=0.0710 | buf=200000 | lr=1.07e-03 | 42074s
+Iter 247/500 | avgGameLen=40.7 | pl=0.5834 vl=0.0711 | buf=200000 | lr=1.07e-03 | 42254s
+Iter 248/500 | avgGameLen=39.3 | pl=0.5658 vl=0.0676 | buf=200000 | lr=1.06e-03 | 42432s
+Iter 249/500 | avgGameLen=41.3 | pl=0.5603 vl=0.0653 | buf=200000 | lr=1.06e-03 | 42615s
+Iter 250/500 | avgGameLen=41.7 | pl=0.5537 vl=0.0661 | buf=200000 | lr=1.05e-03 | 42800s
+  [eval] vs random=1.00  vs heuristic=0.70
+  [saved] iter 250
+Iter 251/500 | avgGameLen=44.7 | pl=0.5495 vl=0.0661 | buf=200000 | lr=1.04e-03 | 43176s
+Iter 252/500 | avgGameLen=52.3 | pl=0.5401 vl=0.0612 | buf=200000 | lr=1.04e-03 | 43406s
+Iter 253/500 | avgGameLen=48.7 | pl=0.5359 vl=0.0655 | buf=200000 | lr=1.03e-03 | 43621s
+Iter 254/500 | avgGameLen=46.4 | pl=0.5348 vl=0.0657 | buf=200000 | lr=1.03e-03 | 43827s
+Iter 255/500 | avgGameLen=39.4 | pl=0.5254 vl=0.0651 | buf=200000 | lr=1.02e-03 | 44001s
+  [eval] vs random=1.00  vs heuristic=0.68
+  [saved] iter 255
+Iter 256/500 | avgGameLen=45.2 | pl=0.5259 vl=0.0677 | buf=200000 | lr=1.01e-03 | 44370s
+Iter 257/500 | avgGameLen=48.1 | pl=0.5250 vl=0.0646 | buf=200000 | lr=1.01e-03 | 44570s
+Iter 258/500 | avgGameLen=40.7 | pl=0.5178 vl=0.0658 | buf=200000 | lr=1.00e-03 | 44741s
+Iter 259/500 | avgGameLen=41.3 | pl=0.5166 vl=0.0665 | buf=200000 | lr=9.96e-04 | 44914s
+Iter 260/500 | avgGameLen=43.5 | pl=0.5190 vl=0.0699 | buf=200000 | lr=9.90e-04 | 45096s
+  [eval] vs random=1.00  vs heuristic=0.93
+  [saved] iter 260
+Iter 261/500 | avgGameLen=34.7 | pl=0.5186 vl=0.0719 | buf=200000 | lr=9.84e-04 | 45376s
+Iter 262/500 | avgGameLen=45.9 | pl=0.5259 vl=0.0716 | buf=200000 | lr=9.78e-04 | 45568s
+Iter 263/500 | avgGameLen=42.4 | pl=0.5246 vl=0.0757 | buf=200000 | lr=9.72e-04 | 45747s
+Iter 264/500 | avgGameLen=42.2 | pl=0.5287 vl=0.0718 | buf=200000 | lr=9.67e-04 | 45923s
+Iter 265/500 | avgGameLen=41.2 | pl=0.5280 vl=0.0742 | buf=200000 | lr=9.61e-04 | 46096s
+  [eval] vs random=1.00  vs heuristic=0.85
+  [saved] iter 265
+Iter 266/500 | avgGameLen=46.6 | pl=0.5348 vl=0.0718 | buf=200000 | lr=9.55e-04 | 46454s
+Iter 267/500 | avgGameLen=41.7 | pl=0.5280 vl=0.0703 | buf=200000 | lr=9.49e-04 | 46636s
+Iter 268/500 | avgGameLen=47.6 | pl=0.5486 vl=0.0744 | buf=200000 | lr=9.43e-04 | 46837s
+Iter 269/500 | avgGameLen=36.5 | pl=0.5549 vl=0.0781 | buf=200000 | lr=9.37e-04 | 46997s
+Iter 270/500 | avgGameLen=38.1 | pl=0.5553 vl=0.0765 | buf=200000 | lr=9.31e-04 | 47178s
+  [eval] vs random=1.00  vs heuristic=0.85
+  [saved] iter 270

@@ -40,8 +40,8 @@ def load_agent():
     cfg = ckpt["config"]
     net = PolicyValueNet(
         board_size     = cfg.get("board_size",     BOARD_SIZE),
-        channels       = cfg.get("channels",       128),
-        num_res_blocks = cfg.get("num_res_blocks", 6),
+        channels       = cfg.get("channels",       64),
+        num_res_blocks = cfg.get("num_res_blocks", 4),
     ).to(_device)
 
     sd = {k.replace("_orig_mod.", ""): v for k, v in ckpt["net"].items()}
@@ -68,6 +68,7 @@ def predict_move(board_state: np.ndarray, player: int) -> Tuple[int, int]:
         row, col = heuristic_move(board_state, player)
         return int(col), int(row)
 
+    agent.reset()   # always start fresh — no persistent state between calls
     policy = agent.get_policy(board_state, player, temperature=0.0, add_noise=False)
 
     # Mask illegal moves

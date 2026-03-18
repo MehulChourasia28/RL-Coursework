@@ -63,8 +63,8 @@ class PolicyValueNet(nn.Module):
         self,
         board_size: int = 9,
         in_channels: int = 3,
-        channels: int = 128,
-        num_res_blocks: int = 6,
+        channels: int = 64,
+        num_res_blocks: int = 4,
     ):
         super().__init__()
         self.board_size = board_size

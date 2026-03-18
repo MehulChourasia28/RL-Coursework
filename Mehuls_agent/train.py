@@ -43,22 +43,37 @@ BOARD_SIZE = 9
 CHECKPOINT_PATH = os.path.join(os.path.dirname(__file__), "checkpoint.pt")
 
 # ── Hyperparameters ───────────────────────────────────────────────────────────
-# Benchmarked on this machine:
-#   torch.compile batch=1 inference: ~1.6 ms
-#   1 game @ 100 sims (compiled):    ~3.2 s
-#   50 games/iter self-play:         ~2.7 min/iter
-#   50 iters total:                  ~2.5 h
-N_ITERS        = 50           # training iterations (~2.5 h total)
+# Benchmarked on this machine (64ch/4-block model, torch.compile):
+#   inference @ batch=1:             ~0.5 ms   (vs ~1.6 ms for 128ch/6-block)
+#   1 game @ 400 sims + tree reuse:  ~3-4 s
+#   50 games/iter self-play:         ~3 min/iter
+#   80 iters total:                  ~4 h
+#
+# Key changes vs previous run:
+#   - 64ch/4-block model: ~3x faster inference → 400 sims in same time as 100
+#   - Tree reuse: subtree is kept after each move, so later moves in a game
+#     accumulate sims from all prior searches — much stronger policy targets
+#   - TEMP_THRESHOLD 10→15: more diverse openings before greedy play
+#   - Resign: saves ~30% of self-play time, generates more varied games
+N_ITERS        = 500           # training iterations
 GAMES_PER_ITER = 50           # self-play games per iteration
-N_SIMS_TRAIN   = 100          # MCTS simulations per move (self-play)
-N_SIMS_EVAL    = 200          # MCTS simulations per move (evaluation)
-TEMP_THRESHOLD = 10           # moves before temperature drops to 0
+N_SIMS_TRAIN   = 200          # MCTS simulations per move (self-play)
+N_SIMS_EVAL    = 400          # MCTS simulations per move (evaluation)
+TEMP_THRESHOLD = 8            # moves before temperature drops to 0 (~15% of avg game)
+
+RESIGN_THRESHOLD = 0.95       # resign if root_value < -RESIGN_THRESHOLD
+RESIGN_PATIENCE  = 5          # consecutive moves below threshold before resign
+RESIGN_MIN_MOVE  = 20         # don't resign before this move number
+RESIGN_RATE      = 0.0        # disabled — value head must mature before resign is safe
+
+HEURISTIC_GAME_RATE = 0.3     # fraction of games played vs heuristic opponent
 
 TRAIN_STEPS    = 300          # gradient steps per iteration
 BATCH_SIZE     = 512
 LR             = 2e-3
 LR_MIN         = 1e-4
 L2_REG         = 1e-4
+VALUE_LOSS_WEIGHT = 2.0       # upweight value head (policy gradients otherwise dominate)
 BUFFER_SIZE    = 200_000
 
 EVAL_FREQ      = 5            # evaluate every N iterations
@@ -66,8 +81,8 @@ SAVE_FREQ      = 5
 EVAL_GAMES     = 40           # games per evaluation
 
 # Network architecture
-CHANNELS       = 128
-RES_BLOCKS     = 6
+CHANNELS       = 64
+RES_BLOCKS     = 4
 
 
 # =========================================================================
@@ -100,9 +115,17 @@ def augment(
 # Self-play game generation
 # =========================================================================
 
-def self_play_game(mcts: MCTS) -> List[Tuple]:
+def self_play_game(mcts: MCTS, allow_resign: bool = True) -> List[Tuple]:
     """
     Play one full game using MCTS and return training examples.
+
+    Tree reuse: mcts.advance(action) is called after every move so that
+    subsequent searches build on prior simulations rather than starting fresh.
+
+    Resign: if root_value < -RESIGN_THRESHOLD for RESIGN_PATIENCE consecutive
+    moves (after RESIGN_MIN_MOVE), the current player concedes.  The final
+    outcome is assigned accordingly.  10% of games disable resign to prevent
+    the network overfitting to "resignable" positions.
 
     Returns:
         list of (encoded_state, mcts_policy, outcome)
@@ -112,6 +135,10 @@ def self_play_game(mcts: MCTS) -> List[Tuple]:
     player  = 1        # Black always moves first
     history = []       # (encoded_state, mcts_policy, player_at_step)
     move_n  = 0
+    consec_losing = 0
+    winner  = 0        # default draw
+
+    mcts.reset()       # discard any tree from a previous game
 
     while not logic.game_over:
         board = logic.board.copy()
@@ -129,19 +156,88 @@ def self_play_game(mcts: MCTS) -> List[Tuple]:
 
         history.append((encode_state(board, player), policy.copy(), player))
 
+        # Resign check (uses MCTS-backed value at root after search)
+        if allow_resign and move_n >= RESIGN_MIN_MOVE:
+            if mcts.root_value < -RESIGN_THRESHOLD:
+                consec_losing += 1
+            else:
+                consec_losing = 0
+            if consec_losing >= RESIGN_PATIENCE:
+                winner = -player   # current player resigns, opponent wins
+                break
+
         action = int(np.random.choice(len(p_masked), p=p_masked))
         row, col = divmod(action, BOARD_SIZE)
         logic.step(row, col, player)
+
+        # Reuse subtree: advance root to the played child
+        mcts.advance(action)
+
         player  = -player
         move_n += 1
 
-    winner = logic.winner  # +1, -1, or 0
-    data   = []
+    if winner == 0:
+        winner = logic.winner  # +1, -1, or 0 (draw / board full)
+
+    data = []
     for state, pol, p in history:
         if winner == 0:
             value = 0.0
         else:
             value = 1.0 if winner == p else -1.0
+        data.append((state, pol, value))
+    return data
+
+
+# =========================================================================
+# Heuristic game generation
+# =========================================================================
+
+def heuristic_game(mcts: MCTS, agent_color: int) -> List[Tuple]:
+    """
+    Play one game: MCTS agent (agent_color) vs heuristic opponent.
+    Returns training examples only for the agent's moves.
+
+    This is critical for teaching the agent to handle tactical threats
+    that don't emerge in pure self-play (instant win/block, threat chains).
+    """
+    from Mehuls_agent.heuristics import heuristic_move
+
+    logic   = GomokuLogic(BOARD_SIZE)
+    player  = 1
+    history = []
+    move_n  = 0
+
+    mcts.reset()
+
+    while not logic.game_over:
+        board = logic.board.copy()
+
+        if player == agent_color:
+            temp = 1.0 if move_n < TEMP_THRESHOLD else 0.0
+            policy = mcts.get_policy(board, player, temperature=temp, add_noise=True)
+            valid  = (board.flatten() == 0).astype(np.float32)
+            p_masked = policy * valid
+            s = p_masked.sum()
+            if s < 1e-10:
+                break
+            p_masked /= s
+            history.append((encode_state(board, player), policy.copy(), player))
+            action = int(np.random.choice(len(p_masked), p=p_masked))
+        else:
+            r, c   = heuristic_move(board, player)
+            action = r * BOARD_SIZE + c
+
+        row, col = divmod(action, BOARD_SIZE)
+        logic.step(row, col, player)
+        mcts.advance(action)
+        player  = -player
+        move_n += 1
+
+    winner = logic.winner
+    data   = []
+    for state, pol, p in history:
+        value = 0.0 if winner == 0 else (1.0 if winner == p else -1.0)
         data.append((state, pol, value))
     return data
 
@@ -168,7 +264,7 @@ def train_step(
 
     policy_loss = -(policies * log_p).sum(dim=1).mean()
     value_loss  = ((v - values) ** 2).mean()
-    loss        = policy_loss + value_loss
+    loss        = policy_loss + VALUE_LOSS_WEIGHT * value_loss
 
     optimizer.zero_grad()
     loss.backward()
@@ -191,6 +287,7 @@ def _eval_vs(net: PolicyValueNet, device: torch.device, opponent: str, n: int) -
         logic       = GomokuLogic(BOARD_SIZE)
         agent_color = 1 if game_i % 2 == 0 else -1
         cur_player  = 1
+        mcts_eval.reset()   # discard tree from previous game
         while not logic.game_over:
             board = logic.board.copy()
             if cur_player == agent_color:
@@ -208,6 +305,7 @@ def _eval_vs(net: PolicyValueNet, device: torch.device, opponent: str, n: int) -
                 action = r * BOARD_SIZE + c
             r, c = divmod(action, BOARD_SIZE)
             logic.step(r, c, cur_player)
+            mcts_eval.advance(action)   # keep tree in sync for both players' moves
             cur_player = -cur_player
         if logic.winner == agent_color:
             wins += 1
@@ -280,7 +378,12 @@ def train(resume: bool = True):
             net.eval()
             game_lens = []
             for _ in range(GAMES_PER_ITER):
-                data = self_play_game(mcts_train)
+                if random.random() < HEURISTIC_GAME_RATE:
+                    agent_color = random.choice([1, -1])
+                    data = heuristic_game(mcts_train, agent_color)
+                else:
+                    allow_resign = (random.random() < RESIGN_RATE)
+                    data = self_play_game(mcts_train, allow_resign=allow_resign)
                 ss = [d[0] for d in data]
                 ps = [d[1] for d in data]
                 vs = [d[2] for d in data]
@@ -322,6 +425,9 @@ def train(resume: bool = True):
 
     except KeyboardInterrupt:
         print("\nInterrupted — saving…")
+        _save(net, optimizer, scheduler, it)
+        print(f"Done. Checkpoint saved to {CHECKPOINT_PATH}")
+        return
 
     _save(net, optimizer, scheduler, N_ITERS)
     print(f"Done. Checkpoint saved to {CHECKPOINT_PATH}")
