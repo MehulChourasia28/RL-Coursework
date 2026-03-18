@@ -49,6 +49,8 @@ def load_agent():
     net.eval()
 
     _mcts = MCTS(net, _device, n_simulations=N_SIMS_PLAY, dirichlet_epsilon=0.0)
+    ckpt_iter = ckpt.get("iteration", "?")
+    print(f"[Mehuls_agent] Using AlphaZero network (iter={ckpt_iter}, sims={N_SIMS_PLAY}, device={_device})")
     return _mcts
 
 
@@ -64,7 +66,10 @@ def predict_move(board_state: np.ndarray, player: int) -> Tuple[int, int]:
         (col, row)  — x=col, y=row, matching gomoku_human_vs_ai.py convention
     """
     agent = load_agent()
-    if agent is None:
+    board_size = board_state.shape[0]
+    if agent is None or board_size != _mcts.net.board_size:
+        trained_on = _mcts.net.board_size if agent else "N/A"
+        print(f"[Mehuls_agent] Using HEURISTIC (network trained on {trained_on}x{trained_on}, got {board_size}x{board_size})")
         row, col = heuristic_move(board_state, player)
         return int(col), int(row)
 
