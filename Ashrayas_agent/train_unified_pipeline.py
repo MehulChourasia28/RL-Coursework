@@ -337,6 +337,55 @@ def copy_state_dict_to_cpu(model):
     return {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
 
 
+def build_reward_config(
+    step_penalty,
+    immediate_block_bonus,
+    immediate_blunder_penalty,
+    own_threat_progress_bonus,
+    block_threat_progress_bonus,
+    waste_move_penalty,
+    passive_under_threat_penalty,
+    win_reward=10.0,
+    loss_reward=-10.0,
+    draw_reward=0.0,
+    dense_chain_scale=0.04,
+    block_three_bonus=0.12,
+    block_four_bonus=0.35,
+):
+    """Build shared reward configuration used across both training phases."""
+    return {
+        "step_penalty": float(step_penalty),
+        "win_reward": float(win_reward),
+        "loss_reward": float(loss_reward),
+        "draw_reward": float(draw_reward),
+        "dense_chain_scale": float(dense_chain_scale),
+        "block_three_bonus": float(block_three_bonus),
+        "block_four_bonus": float(block_four_bonus),
+        "immediate_block_bonus": float(immediate_block_bonus),
+        "immediate_blunder_penalty": float(immediate_blunder_penalty),
+        "own_threat_progress_bonus": float(own_threat_progress_bonus),
+        "block_threat_progress_bonus": float(block_threat_progress_bonus),
+        "waste_move_penalty": float(waste_move_penalty),
+        "passive_under_threat_penalty": float(passive_under_threat_penalty),
+    }
+
+
+def apply_reward_config_to_env(env, reward_config):
+    """Apply shared reward configuration to phase-1 environment."""
+    env.step_penalty = reward_config["step_penalty"]
+    env.win_reward = reward_config["win_reward"]
+    env.loss_reward = reward_config["loss_reward"]
+    env.draw_reward = reward_config["draw_reward"]
+    env.block_three_bonus = reward_config["block_three_bonus"]
+    env.block_four_bonus = reward_config["block_four_bonus"]
+    env.immediate_block_bonus = reward_config["immediate_block_bonus"]
+    env.immediate_blunder_penalty = reward_config["immediate_blunder_penalty"]
+    env.own_threat_progress_bonus = reward_config["own_threat_progress_bonus"]
+    env.block_threat_progress_bonus = reward_config["block_threat_progress_bonus"]
+    env.waste_move_penalty = reward_config["waste_move_penalty"]
+    env.passive_under_threat_penalty = reward_config["passive_under_threat_penalty"]
+
+
 # ============================================================================
 # PHASE 1: TRAINING WITH RANDOM OPPONENT
 # ============================================================================
@@ -356,6 +405,10 @@ def evaluate_policy_phase1(policy_net, board_size, games, device):
 
         while not done:
             action = select_action(policy_net, state, 1, last_move, epsilon=0.0, device=device, board_size=board_size)
+            if action is None:
+                draws += 1
+                break
+
             next_state, _, done, info = env.step(action)
             state = next_state.astype(np.float32)
             next_last_move = info.get("opponent_action")
@@ -363,6 +416,9 @@ def evaluate_policy_phase1(policy_net, board_size, games, device):
                 next_last_move = action
             if next_last_move is not None:
                 last_move = int(next_last_move)
+
+        if not done:
+            continue
 
         result = info.get("result", "")
         if result == "Win":
@@ -373,6 +429,164 @@ def evaluate_policy_phase1(policy_net, board_size, games, device):
             losses += 1
 
     return wins, draws, losses
+
+
+def evaluate_policy_match(
+    policy_net,
+    board_size,
+    games,
+    device,
+    agent_player,
+    opponent_mode,
+    opponent_net=None,
+    opponent_pool=None,
+    eval_pool_net=None,
+):
+    """Evaluate policy against one opponent mode with fixed learner color."""
+    wins = 0
+    draws = 0
+    losses = 0
+
+    for _ in range(games):
+        logic = GomokuLogic(size=board_size)
+        last_move = -1
+        current_player = 1
+        done = False
+
+        selected_pool_opponent = None
+        if opponent_mode == "pool" and opponent_pool:
+            sampled_state_dict = random.choice(list(opponent_pool))
+            if eval_pool_net is None:
+                raise ValueError("eval_pool_net is required for pool evaluation")
+            eval_pool_net.load_state_dict(sampled_state_dict)
+            eval_pool_net.eval()
+            selected_pool_opponent = eval_pool_net
+
+        while not done:
+            if current_player == agent_player:
+                action = select_action(
+                    policy_net,
+                    logic.board,
+                    current_player,
+                    last_move,
+                    epsilon=0.0,
+                    device=device,
+                    board_size=board_size,
+                )
+            else:
+                if opponent_mode == "random":
+                    action = select_random_action(logic.board)
+                elif opponent_mode == "tactical":
+                    action = select_tactical_action(
+                        None,
+                        logic.board,
+                        current_player,
+                        last_move,
+                        epsilon=0.0,
+                        device=device,
+                        board_size=board_size,
+                    )
+                elif opponent_mode == "pool":
+                    action = select_action(
+                        selected_pool_opponent,
+                        logic.board,
+                        current_player,
+                        last_move,
+                        epsilon=0.0,
+                        device=device,
+                        board_size=board_size,
+                    )
+                else:
+                    action = select_action(
+                        opponent_net,
+                        logic.board,
+                        current_player,
+                        last_move,
+                        epsilon=0.0,
+                        device=device,
+                        board_size=board_size,
+                    )
+
+            if action is None:
+                draws += 1
+                break
+
+            row, col = divmod(action, board_size)
+            _, msg = logic.step(row, col, current_player)
+            last_move = action
+
+            if msg == "Win":
+                if current_player == agent_player:
+                    wins += 1
+                else:
+                    losses += 1
+                done = True
+            elif msg == "Draw":
+                draws += 1
+                done = True
+            else:
+                current_player *= -1
+
+    total = max(1, wins + draws + losses)
+    score = (wins + 0.5 * draws) / total
+    return {
+        "wins": wins,
+        "draws": draws,
+        "losses": losses,
+        "score": score,
+        "games": total,
+        "opponent_mode": opponent_mode,
+        "agent_player": agent_player,
+    }
+
+
+def evaluate_policy_benchmark_suite(
+    policy_net,
+    board_size,
+    games_per_case,
+    device,
+    model_arch,
+    opponent_pool=None,
+):
+    """Evaluate policy across multiple opponents and both colors."""
+    cases = [
+        ("random", 1),
+        ("random", -1),
+        ("tactical", 1),
+        ("tactical", -1),
+    ]
+    if opponent_pool and len(opponent_pool) > 0:
+        cases.extend([
+            ("pool", 1),
+            ("pool", -1),
+        ])
+
+    eval_pool_net = None
+    if any(mode == "pool" for mode, _ in cases):
+        action_dim = board_size * board_size
+        eval_pool_net = build_model(model_arch, board_size, action_dim).to(device)
+        eval_pool_net.eval()
+
+    case_results = []
+    for opponent_mode, agent_player in cases:
+        case_results.append(
+            evaluate_policy_match(
+                policy_net=policy_net,
+                board_size=board_size,
+                games=games_per_case,
+                device=device,
+                agent_player=agent_player,
+                opponent_mode=opponent_mode,
+                opponent_pool=opponent_pool,
+                eval_pool_net=eval_pool_net,
+            )
+        )
+
+    aggregate_score = float(np.mean([result["score"] for result in case_results])) if case_results else 0.0
+    return {
+        "aggregate_score": aggregate_score,
+        "case_results": case_results,
+    }
 
 
 def train_phase1_random_opponent(
@@ -392,6 +606,8 @@ def train_phase1_random_opponent(
     eval_every_episodes=500,
     eval_games=100,
     seed=42,
+    model_arch="cnn",
+    reward_config=None,
 ):
     """Phase 1: Train agent against random opponent using GomokuEnv."""
     print("\n" + "="*80)
@@ -400,12 +616,14 @@ def train_phase1_random_opponent(
     
     set_global_seed(seed)
     env = GomokuEnv(size=board_size, render_mode=None)
+    if reward_config is not None:
+        apply_reward_config_to_env(env, reward_config)
     action_dim = env.action_space_n
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    policy_net = build_model("cnn", board_size, action_dim).to(device)
-    target_net = build_model("cnn", board_size, action_dim).to(device)
+    policy_net = build_model(model_arch, board_size, action_dim).to(device)
+    target_net = build_model(model_arch, board_size, action_dim).to(device)
     target_net.load_state_dict(policy_net.state_dict())
     target_net.eval()
 
@@ -413,7 +631,7 @@ def train_phase1_random_opponent(
     loss_fn = nn.SmoothL1Loss()
     replay_buffer = ReplayBuffer(capacity=replay_capacity)
     min_replay_size = max(batch_size, warmup_steps)
-    best_eval_win_rate = -1.0
+    best_eval_score = -1.0
 
     global_step = 0
 
@@ -430,7 +648,13 @@ def train_phase1_random_opponent(
             )
 
             action = select_action(policy_net, state, 1, prev_last_move, epsilon, device, board_size)
-            next_state, reward, done, info = env.step(action)
+            if action is None:
+                next_state = state.copy()
+                reward = 0.0
+                done = True
+                info = {"result": "Draw", "opponent_action": None}
+            else:
+                next_state, reward, done, info = env.step(action)
             next_state = next_state.astype(np.float32)
 
             # Encode states with 4-plane representation
@@ -500,17 +724,28 @@ def train_phase1_random_opponent(
             )
 
         if episode % eval_every_episodes == 0:
-            wins, draws, losses = evaluate_policy_phase1(policy_net, board_size, eval_games, device)
-            win_rate = wins / max(1, eval_games)
-            print(
-                f"[Phase 1 Eval @ ep {episode}] W/D/L: {wins}/{draws}/{losses} | Win rate: {win_rate:.3f}"
+            benchmark = evaluate_policy_benchmark_suite(
+                policy_net=policy_net,
+                board_size=board_size,
+                games_per_case=eval_games,
+                device=device,
+                model_arch=model_arch,
+                opponent_pool=None,
             )
+            print(f"[Phase 1 Eval @ ep {episode}] Aggregate score: {benchmark['aggregate_score']:.3f}")
+            for case in benchmark["case_results"]:
+                color = "Black" if case["agent_player"] == 1 else "White"
+                print(
+                    f"  - vs {case['opponent_mode']:<8} as {color:<5} | "
+                    f"W/D/L: {case['wins']}/{case['draws']}/{case['losses']} | "
+                    f"Score: {case['score']:.3f}"
+                )
 
-            if win_rate > best_eval_win_rate:
-                best_eval_win_rate = win_rate
+            if benchmark["aggregate_score"] > best_eval_score:
+                best_eval_score = benchmark["aggregate_score"]
 
-    print(f"Phase 1 complete. Best win rate: {best_eval_win_rate:.3f}\n")
-    return policy_net, best_eval_win_rate
+    print(f"Phase 1 complete. Best aggregate eval score: {best_eval_score:.3f}\n")
+    return policy_net, best_eval_score
 
 
 # ============================================================================
@@ -584,8 +819,24 @@ def select_tactical_action(policy_net, state, current_player, last_move, epsilon
     return select_action(policy_net, state, current_player, last_move, epsilon, device, board_size)
 
 
-def play_policy_turn(policy_net, logic, player, last_move, epsilon, device, board_size, turn_mode="policy"):
+def play_policy_turn(
+    policy_net,
+    logic,
+    player,
+    last_move,
+    epsilon,
+    device,
+    board_size,
+    turn_mode="policy",
+    reward_config=None,
+):
     """Execute one turn of policy play."""
+    reward_config = reward_config or {}
+    win_reward = float(reward_config.get("win_reward", 10.0))
+    draw_reward = float(reward_config.get("draw_reward", 0.0))
+    invalid_reward = float(reward_config.get("loss_reward", -10.0))
+    dense_chain_scale = float(reward_config.get("dense_chain_scale", 0.04))
+
     if turn_mode == "random":
         action = select_random_action(logic.board)
     elif turn_mode == "tactical":
@@ -599,13 +850,13 @@ def play_policy_turn(policy_net, logic, player, last_move, epsilon, device, boar
     row, col = divmod(action, logic.size)
     success, msg = logic.step(row, col, player)
     if not success:
-        return action, -10.0, True, {"result": "Invalid"}
+        return action, invalid_reward, True, {"result": "Invalid"}
 
-    dense_reward = 0.04 * max(0, _max_chain_length(logic.board, row, col, player) - 1)
+    dense_reward = dense_chain_scale * max(0, _max_chain_length(logic.board, row, col, player) - 1)
     if msg == "Win":
-        return action, 10.0, True, {"result": "Win", "dense_reward": dense_reward}
+        return action, win_reward, True, {"result": "Win", "dense_reward": dense_reward}
     if msg == "Draw":
-        return action, 0.0, True, {"result": "Draw", "dense_reward": dense_reward}
+        return action, draw_reward, True, {"result": "Draw", "dense_reward": dense_reward}
     return action, dense_reward, False, {"result": "Continue", "dense_reward": dense_reward}
 
 
@@ -658,12 +909,7 @@ def run_self_play_episode(
     opponent_net,
     opponent_mode,
     opponent_epsilon,
-    immediate_block_bonus=0.9,
-    immediate_blunder_penalty=0.6,
-    own_threat_progress_bonus=0.20,
-    block_threat_progress_bonus=0.25,
-    waste_move_penalty=0.08,
-    passive_under_threat_penalty=0.25,
+    reward_config=None,
 ):
     """Run one self-play episode."""
     logic = GomokuLogic(size=board_size)
@@ -673,8 +919,19 @@ def run_self_play_episode(
     move_count = 0
     transitions = []
     last_move = -1
-    block_three_bonus = 0.12
-    block_four_bonus = 0.35
+    reward_config = reward_config or {}
+    step_penalty = float(reward_config.get("step_penalty", step_penalty))
+    loss_reward = float(reward_config.get("loss_reward", -10.0))
+    draw_reward = float(reward_config.get("draw_reward", 0.0))
+    dense_chain_scale = float(reward_config.get("dense_chain_scale", 0.04))
+    block_three_bonus = float(reward_config.get("block_three_bonus", 0.12))
+    block_four_bonus = float(reward_config.get("block_four_bonus", 0.35))
+    immediate_block_bonus = float(reward_config.get("immediate_block_bonus", 0.9))
+    immediate_blunder_penalty = float(reward_config.get("immediate_blunder_penalty", 0.6))
+    own_threat_progress_bonus = float(reward_config.get("own_threat_progress_bonus", 0.20))
+    block_threat_progress_bonus = float(reward_config.get("block_threat_progress_bonus", 0.25))
+    waste_move_penalty = float(reward_config.get("waste_move_penalty", 0.08))
+    passive_under_threat_penalty = float(reward_config.get("passive_under_threat_penalty", 0.25))
 
     # Opener (if learning player is -1)
     if learning_player == -1:
@@ -700,6 +957,7 @@ def run_self_play_episode(
             device,
             board_size,
             turn_mode=opener_mode,
+            reward_config=reward_config,
         )
         if opponent_action is not None:
             last_move = opponent_action
@@ -714,7 +972,14 @@ def run_self_play_episode(
         opponent_threat_before = _board_max_chain_length(logic.board, opponent_player)
         encoded_state = encode_state(logic.board, learning_player, last_move, board_size)
         action, own_reward, done, _ = play_policy_turn(
-            policy_net, logic, learning_player, last_move, epsilon, device, board_size
+            policy_net,
+            logic,
+            learning_player,
+            last_move,
+            epsilon,
+            device,
+            board_size,
+            reward_config=reward_config,
         )
         move_count += 1
 
@@ -766,6 +1031,7 @@ def run_self_play_episode(
             device,
             board_size,
             turn_mode=("tactical" if opponent_mode == "tactical" else ("random" if opponent_mode == "random" else "policy")),
+            reward_config=reward_config,
         )
         if opponent_action is not None:
             last_move = opponent_action
@@ -773,14 +1039,16 @@ def run_self_play_episode(
 
         if opponent_done:
             result = opponent_info.get("result")
-            reward = 0.0 if result == "Draw" else -10.0
+            reward = draw_reward if result == "Draw" else loss_reward
             done = True
         else:
             if opponent_action is None:
                 opponent_chain_penalty = 0.0
             else:
                 row, col = divmod(opponent_action, board_size)
-                opponent_chain_penalty = 0.04 * max(0, _max_chain_length(logic.board, row, col, opponent_player) - 1)
+                opponent_chain_penalty = dense_chain_scale * max(
+                    0, _max_chain_length(logic.board, row, col, opponent_player) - 1
+                )
             reward = step_penalty + own_reward - opponent_chain_penalty
             done = False
 
@@ -864,15 +1132,11 @@ def train_phase2_self_play(
     epsilon_reheat_every=2_000,
     epsilon_reheat_boost=0.08,
     epsilon_reheat_duration=200,
-    immediate_block_bonus=0.9,
-    immediate_blunder_penalty=0.6,
-    own_threat_progress_bonus=0.20,
-    block_threat_progress_bonus=0.25,
-    waste_move_penalty=0.08,
-    passive_under_threat_penalty=0.25,
     eval_every_episodes=500,
     eval_games=100,
     seed=42,
+    model_arch="cnn",
+    reward_config=None,
     save_path="Ashrayas_agent/dqn_gomoku_unified.pt",
     best_save_path="Ashrayas_agent/dqn_gomoku_unified_best.pt",
 ):
@@ -887,7 +1151,7 @@ def train_phase2_self_play(
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # policy_net already trained from phase 1
-    target_net = build_model("cnn", board_size, action_dim).to(device)
+    target_net = build_model(model_arch, board_size, action_dim).to(device)
     target_net.load_state_dict(policy_net.state_dict())
     target_net.eval()
 
@@ -895,11 +1159,11 @@ def train_phase2_self_play(
     loss_fn = nn.SmoothL1Loss()
     replay_buffer = ReplayBuffer(capacity=replay_capacity)
     min_replay_size = max(batch_size, warmup_steps)
-    best_eval_win_rate = -1.0
+    best_eval_score = -1.0
     opponent_pool = deque(maxlen=opponent_pool_size)
     opponent_mode_counts = {"current": 0, "pool": 0, "random": 0, "tactical": 0}
 
-    opponent_net = build_model("cnn", board_size, action_dim).to(device)
+    opponent_net = build_model(model_arch, board_size, action_dim).to(device)
     opponent_net.eval()
 
     # Seed pool with phase 1 trained model
@@ -961,12 +1225,7 @@ def train_phase2_self_play(
             selected_opponent_net,
             opponent_mode,
             opponent_epsilon,
-            immediate_block_bonus=immediate_block_bonus,
-            immediate_blunder_penalty=immediate_blunder_penalty,
-            own_threat_progress_bonus=own_threat_progress_bonus,
-            block_threat_progress_bonus=block_threat_progress_bonus,
-            waste_move_penalty=waste_move_penalty,
-            passive_under_threat_penalty=passive_under_threat_penalty,
+            reward_config=reward_config,
         )
         opponent_mode_counts[used_opponent_mode] += 1
 
@@ -1017,29 +1276,39 @@ def train_phase2_self_play(
             )
 
         if episode % eval_every_episodes == 0:
-            wins, draws, losses = evaluate_policy_generic(
-                policy_net, board_size, eval_games, device
+            benchmark = evaluate_policy_benchmark_suite(
+                policy_net=policy_net,
+                board_size=board_size,
+                games_per_case=eval_games,
+                device=device,
+                model_arch=model_arch,
+                opponent_pool=opponent_pool,
             )
-            win_rate = wins / max(1, eval_games)
             print(
-                f"[Phase 2 Eval @ ep {episode}] W/D/L: {wins}/{draws}/{losses} "
-                f"| Win rate: {win_rate:.3f} "
+                f"[Phase 2 Eval @ ep {episode}] Aggregate score: {benchmark['aggregate_score']:.3f} "
                 f"| Opp mix (cur/pool/rnd/tac): "
                 f"{opponent_mode_counts['current']}/"
                 f"{opponent_mode_counts['pool']}/"
-                f"{opponent_mode_counts['random']}"
-                f"/{opponent_mode_counts['tactical']}"
+                f"{opponent_mode_counts['random']}/"
+                f"{opponent_mode_counts['tactical']}"
             )
+            for case in benchmark["case_results"]:
+                color = "Black" if case["agent_player"] == 1 else "White"
+                print(
+                    f"  - vs {case['opponent_mode']:<8} as {color:<5} | "
+                    f"W/D/L: {case['wins']}/{case['draws']}/{case['losses']} | "
+                    f"Score: {case['score']:.3f}"
+                )
 
-            if win_rate > best_eval_win_rate:
-                best_eval_win_rate = win_rate
+            if benchmark["aggregate_score"] > best_eval_score:
+                best_eval_score = benchmark["aggregate_score"]
                 torch.save(
                     {
                         "model_state_dict": policy_net.state_dict(),
-                        "model_arch": "cnn",
+                        "model_arch": model_arch,
                         "board_size": board_size,
                         "action_dim": action_dim,
-                        "best_eval_win_rate": best_eval_win_rate,
+                        "best_eval_score": best_eval_score,
                         "episode": episode,
                         "seed": seed,
                         "training_mode": "unified_pipeline_phase2",
@@ -1053,13 +1322,36 @@ def train_phase2_self_play(
                 )
                 print(f"New best model saved to: {resolved_best_save_path}")
 
+    if best_eval_score < 0.0:
+        # Ensure best checkpoint exists even when no eval step is reached.
+        best_eval_score = 0.0
+        torch.save(
+            {
+                "model_state_dict": policy_net.state_dict(),
+                "model_arch": model_arch,
+                "board_size": board_size,
+                "action_dim": action_dim,
+                "best_eval_score": best_eval_score,
+                "seed": seed,
+                "training_mode": "unified_pipeline_phase2",
+                "opponent_current_prob": opponent_current_prob,
+                "opponent_pool_prob": opponent_pool_prob,
+                "opponent_tactical_prob": opponent_tactical_prob,
+                "opponent_epsilon": opponent_epsilon,
+                "opponent_pool_size": opponent_pool_size,
+                "note": "fallback best checkpoint (no eval run)",
+            },
+            resolved_best_save_path,
+        )
+        print(f"No eval checkpoint was produced; saved fallback best model to: {resolved_best_save_path}")
+
     torch.save(
         {
             "model_state_dict": policy_net.state_dict(),
-            "model_arch": "cnn",
+            "model_arch": model_arch,
             "board_size": board_size,
             "action_dim": action_dim,
-            "best_eval_win_rate": best_eval_win_rate,
+            "best_eval_score": best_eval_score,
             "seed": seed,
             "training_mode": "unified_pipeline_phase2",
             "opponent_current_prob": opponent_current_prob,
@@ -1071,10 +1363,10 @@ def train_phase2_self_play(
         resolved_save_path,
     )
     print(f"\nPhase 2 complete. Model saved to: {resolved_save_path}")
-    if best_eval_win_rate >= 0.0:
-        print(f"Best eval win rate: {best_eval_win_rate:.3f} | Best model path: {resolved_best_save_path}\n")
+    if best_eval_score >= 0.0:
+        print(f"Best aggregate eval score: {best_eval_score:.3f} | Best model path: {resolved_best_save_path}\n")
 
-    return policy_net, best_eval_win_rate
+    return policy_net, best_eval_score
 
 
 # ============================================================================
@@ -1119,6 +1411,7 @@ def train_unified_pipeline(
     eval_every_episodes=500,
     eval_games=100,
     seed=42,
+    model_arch="cnn",
     save_path="Ashrayas_agent/dqn_gomoku_unified.pt",
     best_save_path="Ashrayas_agent/dqn_gomoku_unified_best.pt",
 ):
@@ -1132,8 +1425,18 @@ def train_unified_pipeline(
     print("║" + " "*78 + "║")
     print("╚" + "═"*78 + "╝\n")
 
+    reward_config = build_reward_config(
+        step_penalty=step_penalty,
+        immediate_block_bonus=immediate_block_bonus,
+        immediate_blunder_penalty=immediate_blunder_penalty,
+        own_threat_progress_bonus=own_threat_progress_bonus,
+        block_threat_progress_bonus=block_threat_progress_bonus,
+        waste_move_penalty=waste_move_penalty,
+        passive_under_threat_penalty=passive_under_threat_penalty,
+    )
+
     # Phase 1: Train with random opponent
-    policy_net, phase1_win_rate = train_phase1_random_opponent(
+    policy_net, phase1_eval_score = train_phase1_random_opponent(
         episodes=phase1_episodes,
         board_size=board_size,
         gamma=gamma,
@@ -1150,10 +1453,12 @@ def train_unified_pipeline(
         eval_every_episodes=eval_every_episodes,
         eval_games=eval_games,
         seed=seed,
+        model_arch=model_arch,
+        reward_config=reward_config,
     )
 
     # Phase 2: Self-play training
-    policy_net, phase2_win_rate = train_phase2_self_play(
+    policy_net, phase2_eval_score = train_phase2_self_play(
         policy_net=policy_net,
         episodes=phase2_episodes,
         board_size=board_size,
@@ -1179,15 +1484,11 @@ def train_unified_pipeline(
         epsilon_reheat_every=epsilon_reheat_every,
         epsilon_reheat_boost=epsilon_reheat_boost,
         epsilon_reheat_duration=epsilon_reheat_duration,
-        immediate_block_bonus=immediate_block_bonus,
-        immediate_blunder_penalty=immediate_blunder_penalty,
-        own_threat_progress_bonus=own_threat_progress_bonus,
-        block_threat_progress_bonus=block_threat_progress_bonus,
-        waste_move_penalty=waste_move_penalty,
-        passive_under_threat_penalty=passive_under_threat_penalty,
         eval_every_episodes=eval_every_episodes,
         eval_games=eval_games,
         seed=seed,
+        model_arch=model_arch,
+        reward_config=reward_config,
         save_path=save_path,
         best_save_path=best_save_path,
     )
@@ -1196,8 +1497,9 @@ def train_unified_pipeline(
     print("\n" + "="*80)
     print("UNIFIED TRAINING COMPLETE")
     print("="*80)
-    print(f"Phase 1 best win rate: {phase1_win_rate:.3f}")
-    print(f"Phase 2 best win rate: {phase2_win_rate:.3f}")
+    print(f"Model architecture: {model_arch}")
+    print(f"Phase 1 best aggregate eval score: {phase1_eval_score:.3f}")
+    print(f"Phase 2 best aggregate eval score: {phase2_eval_score:.3f}")
     print(f"Final model saved to: {resolve_project_path(best_save_path)}")
     print("="*80 + "\n")
 
@@ -1226,6 +1528,13 @@ def parse_args():
     parser.add_argument("--target-update-every", type=int, default=1_000)
     parser.add_argument("--train-every", type=int, default=4)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--model-arch",
+        type=str,
+        default="cnn",
+        choices=["cnn", "residual_dueling_dqn_4plane"],
+        help="Model architecture used in both training phases",
+    )
     
     # Phase 1 epsilon schedule
     parser.add_argument("--phase1-epsilon-start", type=float, default=1.0)
@@ -1324,6 +1633,7 @@ if __name__ == "__main__":
         eval_every_episodes=args.eval_every_episodes,
         eval_games=args.eval_games,
         seed=args.seed,
+        model_arch=args.model_arch,
         save_path=args.save_path,
         best_save_path=args.best_save_path,
     )
