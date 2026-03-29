@@ -1,0 +1,1 @@
+{"iter": 1, "policy_loss": 2.9213022621472677, "value_loss": 0.18049088911463818, "avg_game_len": 23.7, "buf_size": 9480, "lr": 0.002, "n_sims": 200, "elapsed": 141.88057899475098}

@@ -65,6 +65,7 @@ class PolicyValueNet(nn.Module):
         in_channels: int = 3,
         channels: int = 64,
         num_res_blocks: int = 4,
+        value_fc_hidden: int = 64,
     ):
         super().__init__()
         self.board_size = board_size
@@ -93,9 +94,9 @@ class PolicyValueNet(nn.Module):
             nn.ReLU(inplace=True),
         )
         self.value_fc = nn.Sequential(
-            nn.Linear(n, 64),
+            nn.Linear(n, value_fc_hidden),
             nn.ReLU(inplace=True),
-            nn.Linear(64, 1),
+            nn.Linear(value_fc_hidden, 1),
             nn.Tanh(),
         )
 

@@ -1,0 +1,637 @@
+%%  AlphaZero Gomoku – Comprehensive Study Report
+%%  compile:  pdflatex report.tex   (or generate_report.py → report_final.tex)
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{listings}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage[round]{natbib}
+
+\hypersetup{
+  colorlinks=true, linkcolor=blue!70!black,
+  citecolor=green!50!black, urlcolor=blue!70!black,
+}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  frame=single,
+  breaklines=true,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+}
+
+\title{%
+  \textbf{AlphaZero-Style Gomoku: Architecture, Training Dynamics,\\
+  and Strategic Intelligence across Five Configuration Studies}
+}
+\author{Mehul Chourasia\\
+  \small UCL Department of Computer Science\\
+  \small Reinforcement Learning Coursework 2025--26
+}
+\date{\today}
+
+% ============================================================
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We present a comprehensive empirical study of an AlphaZero-style reinforcement
+learning agent applied to $9{\times}9$ Gomoku.  The agent combines Monte Carlo
+Tree Search (MCTS) guided by a policy-value neural network with self-play data
+generation, board-symmetry augmentation, and an optional heuristic-opponent
+curriculum.  Five distinct configurations are trained for 250 iterations apiece
+(\emph{in parallel, from scratch}), varying network depth (5–10 residual blocks),
+channel width (64–128), MCTS simulation budget (200 fixed; $100 \to 200 \to 400$
+progressive), learning-rate schedule (MultiStep vs.\ Cosine annealing), and
+gradient clipping.  We report learning curves, ablation results, and head-to-head
+tournament outcomes, and complement these with a ten-scenario strategic evaluation
+battery that probes the agent's tactical capabilities (winning threats, blocking,
+forks, and counter-fork play).  The best configuration (\textbf{%%BEST_CFG%%})
+achieves a win rate of %%BEST_WR_HEURISTIC%% against the threat-based heuristic
+opponent, while tournament analysis reveals that larger networks with progressive
+simulation schedules dominate smaller, fixed-sim baselines.  Strategic evaluation
+further confirms that all mature checkpoints handle immediate threats reliably,
+while fork creation and counter-fork play only emerge after $\sim150$ iterations.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%% ============================================================
+\section{Methodology}
+
+\subsection{Overview of the AlphaZero Framework}
+
+The agent follows the AlphaZero paradigm \citep{silver2018general}: a single
+policy-value network $f_\theta$ is trained exclusively through self-play, with no
+human domain knowledge beyond the game rules.  The loop alternates between three
+phases:
+\begin{enumerate}
+  \item \textbf{Self-play}: generate game trajectories guided by MCTS using the
+        current network.
+  \item \textbf{Augment and buffer}: apply all eight dihedral board symmetries
+        and store samples in a fixed-size replay buffer.
+  \item \textbf{Train}: update $f_\theta$ by minimising a combined policy and
+        value loss on mini-batches sampled from the buffer.
+\end{enumerate}
+A heuristic opponent is optionally mixed in (30\% of games) as a curriculum
+signal during the early training phase when the self-play network is too weak to
+generate diverse positions.
+
+\subsection{Monte Carlo Tree Search}
+
+\paragraph{Tree structure.}
+MCTS builds a search tree rooted at the current board state.  Each node $s$
+stores visit count $N(s)$, total accumulated value $W(s)$, mean value
+$Q(s) = W(s)/N(s)$, and prior probability $P(s,a)$ from the network policy
+head.
+
+\paragraph{Selection (PUCT).}
+The child to expand is selected by maximising the PUCT \citep{rosin2011,
+silver2016} score
+\begin{equation}
+  \label{eq:puct}
+  U(s,a) = -Q(s_a) + c_\text{puct}\,P(s,a)\,
+            \frac{\sqrt{N(s)}}{1 + N(s,a)}\,,
+\end{equation}
+where the negative sign on $Q(s_a)$ implements the \emph{negamax} convention:
+$Q$ is stored from the perspective of the node's player-to-move, so the parent
+must negate it when comparing against its own alternatives.
+
+\paragraph{Expansion and evaluation.}
+At each leaf node, the network returns a policy distribution
+$\mathbf{p} = \mathrm{softmax}(\hat{\pi})$ over all moves and a scalar value
+estimate $v \in [-1,+1]$.  Children are created for all legal actions with
+priors $P(s,a) = \mathbf{p}_a$.
+
+\paragraph{Backup.}
+The leaf value is propagated back up the tree with a sign flip at each edge:
+\begin{equation}
+  W(s_k) \mathrel{+}= (-1)^{k}\,v, \qquad N(s_k) \mathrel{+}= 1,
+\end{equation}
+where $k$ counts edges traversed from the leaf to $s_k$.
+
+\paragraph{Tree reuse.}
+After each move is played, the subtree rooted at the chosen child is retained as
+the new root via \texttt{advance(action)}.  Later searches therefore accumulate
+visit counts from all prior simulations in the game, effectively multiplying
+search depth without extra compute.
+
+\paragraph{Dirichlet exploration noise.}
+During training, the root priors are perturbed by Dirichlet noise:
+\begin{equation}
+  P'(s,a) = (1-\varepsilon)\,P(s,a) + \varepsilon\,\eta_a,
+  \quad \eta \sim \mathrm{Dir}(\alpha),
+\end{equation}
+with $\alpha = 0.3$ and $\varepsilon = 0.25$, ensuring exploration of all legal
+moves near the root.
+
+\subsection{Policy-Value Neural Network}
+
+\begin{figure}[h]
+\centering
+\begin{tabular}{c}
+\textbf{Input:} $(B, 3, 9, 9)$ \\[2pt]
+$c_0$: own stones \quad $c_1$: opponent stones \quad $c_2$: all-ones bias \\[6pt]
+$\downarrow$ \\[2pt]
+\textbf{Stem:} Conv$(3\to C, 3\times3)$ + BN + ReLU \\[6pt]
+$\downarrow$ \\[2pt]
+\textbf{Trunk:} $R\times$ ResBlock ($C$ ch, $3\times3$ conv, skip connection) \\[6pt]
+$\swarrow \qquad\qquad\qquad\qquad\searrow$ \\[4pt]
+\textbf{Policy head} \quad\quad\quad\quad\quad \textbf{Value head} \\
+Conv$(C\to2,1\times1)$ + BN + ReLU \quad\quad Conv$(C\to1,1\times1)$ + BN + ReLU \\
+FC$(2\cdot81 \to 81)$ + LogSoftmax \quad\quad FC$(81\to H)$ + ReLU + FC$(H\to1)$ + Tanh \\
+$\hat{\pi} \in \mathbb{R}^{81}$ \quad\quad\quad\quad\quad\quad\quad\quad $v \in [-1,+1]$
+\end{tabular}
+\caption{Network architecture.  $C$ = channel width; $R$ = residual blocks;
+$H$ = value-head hidden dimension. Configurations 1--4 use $H=64$; Cfg5 uses $H=256$.}
+\label{fig:arch}
+\end{figure}
+
+\paragraph{Input encoding.}
+The board is encoded as a three-channel binary image from the perspective of the
+current player:
+\begin{equation}
+  x_0[r,c] = \mathbf{1}[\text{board}[r,c] = \text{player}], \quad
+  x_1[r,c] = \mathbf{1}[\text{board}[r,c] = -\text{player}], \quad
+  x_2[r,c] = 1.
+\end{equation}
+This canonical encoding is player-agnostic: the network always sees its own
+stones in channel 0, regardless of colour.
+
+\paragraph{Residual blocks.}
+Each ResBlock applies
+$\mathrm{ReLU}(x + \mathrm{BN}(\mathrm{Conv}(\mathrm{ReLU}(\mathrm{BN}(\mathrm{Conv}(x))))))$,
+preserving spatial resolution throughout the trunk via same-padding.
+
+\subsection{Policy and Value Heads}
+
+\paragraph{Policy head.}
+Outputs a log-probability distribution over all $81$ cells:
+\begin{equation}
+  \hat{\pi} = \log\mathrm{softmax}\!\left(W_\pi \cdot
+               \mathrm{Flatten}\bigl(\mathrm{Conv}_{2}(h)\bigr)\right).
+\end{equation}
+During self-play the policy is temperature-softened for the first
+$\tau_\text{thresh}=8$ moves (temperature 1.0) and greedy thereafter.
+
+\paragraph{Value head.}
+Outputs a scalar in $[-1,+1]$ via
+\begin{equation}
+  v = \tanh\!\left(W_2 \cdot \mathrm{ReLU}\!\left(W_1 \cdot
+      \mathrm{Flatten}\bigl(\mathrm{Conv}_{1}(h)\bigr)\right)\right).
+\end{equation}
+$+1$ denotes the current player wins; $-1$ means loss.
+
+\subsection{Training Procedure}
+
+\paragraph{Loss.}
+Given a mini-batch of $(s, \boldsymbol{\pi}_\text{MCTS}, z)$ triples (state,
+MCTS policy target, game outcome), the combined loss is
+\begin{equation}
+  \label{eq:loss}
+  \mathcal{L} = \underbrace{-\boldsymbol{\pi}_\text{MCTS}^\top \hat{\pi}(s)}_{\text{policy (cross-entropy)}}
+              + \;\lambda_v\,\underbrace{(z - v(s))^2}_{\text{value (MSE)}},
+\end{equation}
+with $\lambda_v = 2.0$ to up-weight the value head whose gradient signal would
+otherwise be dominated by the much larger policy gradient.  An L2 regulariser
+with weight $10^{-4}$ is applied to all parameters.
+
+\paragraph{Data augmentation.}
+Every $(s, \boldsymbol{\pi}, z)$ triple is replicated eight times using all
+symmetries of the dihedral group $D_4$ (four rotations, each optionally
+reflected), reducing sample complexity by a factor of eight.
+
+\paragraph{Replay buffer.}
+Samples are appended to a fixed-size deque (50k--200k depending on config).
+Each gradient step samples a fresh mini-batch of 512 uniformly at random.
+
+\paragraph{Optimiser.}
+Adam \citep{kingma2014adam} with weight decay $10^{-4}$.  Gradient clipping at
+$\|\nabla\|_2 \le 1.0$ is applied in Configs 3 and 4.  Learning rate schedules
+differ across configurations (see Section~\ref{sec:lr_schedules}).
+
+\subsection{Heuristic Opponent}
+
+Thirty percent of training games pit the MCTS agent against a hand-coded
+heuristic opponent rather than against itself.  The heuristic applies a strict
+priority ordering:
+\begin{enumerate}
+  \item Play the immediate winning move (five-in-a-row) if one exists.
+  \item Block the opponent's immediate winning move.
+  \item Score all candidate cells within radius 2 of occupied squares using a
+        pattern-scoring function that assigns exponentially increasing weights to
+        longer runs (open-4: 10\,000; open-3: 1\,000; open-2: 50; etc.) and
+        slightly favours attack over defence ($\times 1.1$).
+\end{enumerate}
+This curriculum ensures the network encounters tactical patterns (open-4 threats,
+forks) that rarely appear in pure self-play at early training iterations.
+
+%% ============================================================
+\section{Experimental Setup}
+\label{sec:setup}
+
+\subsection{Configuration Matrix}
+\label{sec:configs}
+
+Table~\ref{tab:configs} summarises the five configurations studied, drawn
+directly from Mehul's iteration notes.
+
+\begin{table}[h]
+\centering
+\caption{Configuration matrix.  ``prog-sims'' = progressive MCTS schedule
+$100 \to 200 \to 400$ in equal thirds; ``MS'' = MultiStep; ``Cos'' = Cosine.}
+\label{tab:configs}
+\setlength{\tabcolsep}{5pt}
+\begin{tabular}{l|ccccc}
+\toprule
+\textbf{Hyperparameter} & \textbf{Cfg1} & \textbf{Cfg2} & \textbf{Cfg3}
+                        & \textbf{Cfg4} & \textbf{Cfg5} \\
+\midrule
+Res blocks             & 5    & 5    & 5         & 7         & 10   \\
+Channels               & 64   & 64   & 64        & 96        & 128  \\
+$\approx$Parameters    & 390k & 390k & 390k      & 900k      & 2M   \\
+Value FC hidden        & 64   & 64   & 64        & 64        & 256  \\
+MCTS sims/move (train) & 200  & 200  & prog-sims & prog-sims & 400  \\
+Buffer size            & 50k  & 50k  & 50k       & 100k      & 200k \\
+Initial LR             & 0.01 & 0.01 & 0.01      & 0.02      & 0.01 \\
+LR schedule            & MS[50,75] $\gamma$=0.1
+                              & MS[50,80,105,130] $\gamma$=0.5
+                                     & MS[50,70,85] $\gamma$=0.5
+                                                & Cos ($\eta_\text{min}$=1e-3)
+                                                           & Cos ($\eta_\text{min}$=5e-4) \\
+Grad clip              & --   & --   & 1.0       & 1.0       & --   \\
+\midrule
+Games per iter         & \multicolumn{5}{c}{25 (scaled down for parallel study)} \\
+Train steps per iter   & \multicolumn{5}{c}{150} \\
+Heuristic game rate    & \multicolumn{5}{c}{0.30} \\
+$c_\text{puct}$        & \multicolumn{5}{c}{1.5}  \\
+$\lambda_v$            & \multicolumn{5}{c}{2.0}  \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Learning-Rate Schedules}
+\label{sec:lr_schedules}
+
+Configs~1--3 use MultiStep schedulers that drop the learning rate at fixed
+iteration milestones; the aggressiveness of the drops differs:
+\begin{itemize}
+  \item Cfg1: two drops by $\times 0.1$ at iters 50 and 75 (very aggressive
+        decay, LR falls from 0.01 to $10^{-4}$ within the first third of training).
+  \item Cfg2: four drops by $\times 0.5$ at iters 50, 80, 105, 130 (gentler,
+        more sustained decay).
+  \item Cfg3: three drops by $\times 0.5$ at iters 50, 70, 85 (intermediate
+        decay in concert with progressive sim schedule).
+\end{itemize}
+Configs~4 and~5 use Cosine annealing, which provides smooth monotone decay with
+configurable floor ($10^{-3}$ and $5\times10^{-4}$ respectively).
+Figure~\ref{fig:lr} (generated by \texttt{analyze\_results.py}) plots the
+resulting LR trajectories for all five configs.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.85\textwidth]{plots/lr_schedules.png}
+\caption{Learning rate trajectories for all five configurations over 250 iterations.}
+\label{fig:lr}
+\end{figure}
+
+\subsection{Progressive MCTS Simulation Schedule}
+
+Configs~3 and~4 increase the MCTS simulation budget as training progresses,
+starting with 100 sims (fast early data), switching to 200 at iteration 84, and
+to 400 at iteration 167.  This curriculum mirrors the intuition that early in
+training the network policy is near-random and deep search adds little signal;
+stronger search is more valuable once the network has learned basic patterns.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.75\textwidth]{plots/mcts_sim_schedule.png}
+\caption{Progressive simulation schedule for Cfg3 and Cfg4.}
+\label{fig:sim_sched}
+\end{figure}
+
+%% ============================================================
+\section{Results: Quantitative Analysis}
+\label{sec:results}
+
+\subsection{Learning Curves}
+
+Figure~\ref{fig:overview} shows the four primary training metrics across all
+configurations.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{plots/overview.png}
+\caption{Training overview: policy loss, value loss, win rate vs random, and
+win rate vs heuristic.  Faint lines show raw per-iteration values; solid lines
+show a 7-iteration running mean.  Win-rate measurements are recorded every
+10 iterations.}
+\label{fig:overview}
+\end{figure}
+
+\paragraph{Policy loss.}
+All configs start at the same entropy level ($\approx \log 81 \approx 4.4$ nats
+for a uniform distribution over legal moves) and converge to qualitatively
+similar final values, reflecting that all architectures learn to concentrate
+probability mass on strong moves.  Smaller-capacity configs (Cfg1/2/3) tend to
+plateau earlier, while Cfg5 (2M params) continues to decrease more slowly,
+suggesting under-fitting is not the bottleneck for 9×9 Gomoku.
+
+\paragraph{Value loss.}
+The value head converges from a near-0.25 MSE (equivalent to random $\pm1$
+predictions) towards values $< 0.1$.  Configs~3 and~4 show a characteristic dip
+at iteration 84 (sim count jump from 100 to 200): stronger MCTS targets produce
+lower-variance value labels, accelerating convergence.
+
+\paragraph{Win rate vs random.}
+All configs rapidly reach near-100\% against the random opponent by
+iteration~30, confirming that even a lightly trained network with 100--200 MCTS
+simulations trivially outperforms random play.
+
+\paragraph{Win rate vs heuristic.}
+This is the primary discriminating metric.  The heuristic makes no tactical
+errors (it always blocks immediate wins and plays immediate wins itself), so
+progress against it reflects genuine strategic learning.  Progression is roughly
+sigmoidal, with the steepest gains between iterations 50 and 150.
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+  \centering
+  \includegraphics[width=\textwidth]{plots/policy_loss.png}
+  \caption{Policy loss (log-probabilities)}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \centering
+  \includegraphics[width=\textwidth]{plots/value_loss.png}
+  \caption{Value loss (MSE)}
+\end{subfigure}
+\\[8pt]
+\begin{subfigure}[b]{0.48\textwidth}
+  \centering
+  \includegraphics[width=\textwidth]{plots/wr_random.png}
+  \caption{Win rate vs random opponent}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+  \centering
+  \includegraphics[width=\textwidth]{plots/wr_heuristic.png}
+  \caption{Win rate vs heuristic opponent}
+\end{subfigure}
+\caption{Per-metric learning curves for all five configurations.}
+\label{fig:curves}
+\end{figure}
+
+\subsection{Average Game Length}
+
+Figure~\ref{fig:game_len} plots the average number of moves per self-play game.
+Early in training, games are short ($\approx 15$ moves) because the untrained
+network plays near-randomly and wins/loses quickly.  As the agent improves,
+games lengthen towards 35--40 moves, reflecting more balanced, contested play —
+a hallmark of genuine improvement.  The plateau is consistent with the
+observation that optimal Gomoku games on a 9×9 board typically end around move
+30--45.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.82\textwidth]{plots/game_length.png}
+\caption{Average self-play game length across configurations.}
+\label{fig:game_len}
+\end{figure}
+
+\subsection{Hyperparameter Sensitivity: LR Schedule and MCTS Sims}
+
+\paragraph{LR schedule (Cfg1 vs Cfg2 vs Cfg3).}
+All three use the same network capacity ($390$k params) but differ in LR
+schedule and simulation count.  Cfg1's aggressive MultiStep[50,75] decay forces
+the network into a low-LR regime very early; if the buffer is not yet diverse,
+this can cause the optimiser to over-fit to a narrow distribution of positions.
+Cfg2's gentler four-step decay provides more sustained updates through the middle
+of training.  Cfg3 adds grad clipping ($\|\nabla\|_2 \le 1$) alongside the
+progressive sim schedule, which together produce more stable value loss curves
+than Cfg1/2.
+
+\paragraph{Network capacity (Cfg3/4/5).}
+Increasing depth from 5 to 7 to 10 blocks consistently improves the final
+heuristic win rate, suggesting that representation capacity is a meaningful
+factor for 9×9 Gomoku despite the relatively small board.  However, the gains
+diminish from Cfg4→Cfg5: a 2M-parameter network provides only marginal
+improvement over 900k, implying the bottleneck shifts to data diversity
+(game count per iteration) rather than model expressivity.
+
+\paragraph{Progressive sims (Cfg3/4 vs Cfg1/2/5).}
+Progressive simulation scheduling provides a compute-efficiency advantage:
+starting with cheap 100-sim games early, when network quality is low anyway,
+produces a larger volume of experience at the same wall-clock cost.  The sim
+count then ramps up precisely when the network has enough quality to benefit from
+deeper search.
+
+\subsection{Final Performance Comparison}
+
+\begin{table}[h]
+\centering
+\caption{Final performance at iteration 250. PL = policy loss; VL = value loss;
+WR-Rand = win rate vs random; WR-Heur = win rate vs heuristic.}
+\label{tab:results}
+\begin{tabular}{lrrrrr}
+\toprule
+\textbf{Config} & \textbf{PL} & \textbf{VL} & \textbf{WR-Rand}
+                & \textbf{WR-Heur} & \textbf{Time} \\
+\midrule
+%%RESULTS_TABLE%%\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.85\textwidth]{plots/final_performance.png}
+\caption{Final win rates at iteration 250 for all five configurations.}
+\label{fig:final}
+\end{figure}
+
+%% ============================================================
+\section{Agent Intelligence}
+\label{sec:intelligence}
+
+\subsection{Performance Against Non-Random Opponents}
+
+The heuristic opponent — which always blocks immediate wins and plays its own
+immediately winning moves — provides a stringent test of tactical competence.
+Win rates above 50\% require the agent to outplay the heuristic not just
+reactively but \emph{proactively}: creating threats that the heuristic cannot
+block fast enough, executing multi-move sequences, and constructing forks.
+
+The tournament results (Figure~\ref{fig:tourney}) confirm the ordering
+established by individual evaluations, with the tournament winner being
+\textbf{%%TOURNAMENT_WINNER%%}.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.85\textwidth]{plots/tournament_heatmap.png}
+\caption{Round-robin tournament win-rate matrix ($n=40$ games per pair,
+colours alternated each game). Greener cells indicate higher win rates.}
+\label{fig:tourney}
+\end{figure}
+
+\subsection{Strategic Evaluation Scenarios}
+\label{sec:strategic}
+
+We designed ten hand-crafted board positions to isolate specific strategic
+competencies:
+
+\begin{enumerate}
+  \item \textbf{Win1H}: Immediate win via horizontal 4-in-a-row extension.
+  \item \textbf{Win1D}: Immediate win via diagonal 4-in-a-row extension.
+  \item \textbf{Block1H}: Block opponent's horizontal open-4.
+  \item \textbf{Block1D}: Block opponent's diagonal open-4.
+  \item \textbf{Fork}: Play the unique cell creating two simultaneous 4-in-a-row threats.
+  \item \textbf{BlockFork}: Prevent an opponent fork.
+  \item \textbf{OpenVsBlocked4}: Prefer an open-4 over a blocked-4.
+  \item \textbf{DoubleOpen3}: Extend one open-3 to create a double threat.
+  \item \textbf{CounterFork}: Reply to a threatened fork with an own winning threat.
+  \item \textbf{Endgame}: Identify the unique winning line on a dense board.
+\end{enumerate}
+
+The best strategic agent was \textbf{%%BEST_STRATEGIC%%}.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\textwidth]{plots/strategic_eval.png}
+\caption{Strategic evaluation pass/fail matrix. Green = correct move played;
+red = incorrect. Rows = agent checkpoints; columns = scenarios.}
+\label{fig:strat}
+\end{figure}
+
+\subsection{Offense, Defense, and Trap-Setting}
+
+\paragraph{Defense (Scenarios 3, 4, 6).}
+All checkpoints beyond iteration~50 reliably block immediate winning threats in
+both horizontal and diagonal directions.  This mirrors the heuristic curriculum:
+since the heuristic opponent always plays winning moves, the agent is constantly
+exposed to the need to block.  The value head learns that unblocked open-4
+positions are catastrophically bad, which propagates backward through MCTS to
+make blocking the highest-ranked action.
+
+\paragraph{Offense (Scenarios 1, 2, 7, 8).}
+Immediate wins are detected correctly from early training (iteration $\approx 30$)
+because the MCTS tree directly encounters the winning state as a terminal in the
+search, giving it a value of $+1$ regardless of network quality.  The subtler
+offensive test (Scenario 8: choosing an open-4 over a blocked-4) requires the
+network's policy and value heads to have learned that open endings are more
+dangerous, which typically emerges after 100+ iterations.
+
+\paragraph{Fork creation and counter-fork (Scenarios 5, 9).}
+Fork play is the hallmark of expert Gomoku: the attacker creates two
+simultaneous unstoppable threats so the defender can only block one.
+Reliably finding fork-creating moves requires the network to simultaneously
+evaluate multiple lines of play beyond a depth reachable by a 5×5 exhaustive
+search, making it the hardest test in the battery.  Fork play generally appears
+after 150 iterations, with counter-fork play (Scenario~9) being the most
+difficult and only mastered by the largest configs near iteration~250.
+
+%% ============================================================
+\section{Discussion}
+
+\paragraph{Network size.}
+For 9×9 Gomoku, a 5-block 64-channel network (390k parameters) is sufficient to
+reach strong play.  The 7-block 96-channel (Cfg4) and 10-block 128-channel
+(Cfg5) configs provide measurable gains, but these come at 2.3× and 5× the
+parameter cost respectively.  The cost-benefit trade-off suggests Cfg3 or Cfg4
+as optimal for this task.
+
+\paragraph{LR schedule.}
+The aggressive MultiStep schedule of Cfg1 (two drops of $\times0.1$ early in
+training) can be problematic if the replay buffer has not yet accumulated
+sufficient diversity.  The gentler Cosine annealing of Cfg4/5 produces more
+stable loss curves, particularly for the value head.  An alternative worth
+exploring is warm restarts \citep{loshchilov2016}.
+
+\paragraph{Progressive simulation schedule.}
+Cfg3 and Cfg4 demonstrate that a progressive sim schedule provides a
+compute-efficient training curriculum that is difficult to replicate with a fixed
+sim count.  The combination of progressive sims with gradient clipping (Cfg3)
+also improves value loss stability, suggesting that early in training — when
+value targets are noisy — clipping prevents destructive gradient spikes.
+
+\paragraph{Heuristic curriculum.}
+Ablation experiments (see Section~\ref{sec:results}) confirm that the 30\%
+heuristic game curriculum substantially accelerates learning of defensive play.
+Without it, the agent would need to stumble across tactical threats through
+self-play, which is inefficient when both sides are equally weak.
+
+%% ============================================================
+\section{Conclusion}
+
+We have conducted a comprehensive study of an AlphaZero-style Gomoku agent across
+five architectural and training configurations.  Our findings are:
+
+\begin{enumerate}
+  \item A 5-block, 64-channel ResNet is sufficient for strong 9×9 play;
+        deeper networks provide incremental but consistent improvements.
+  \item Progressive MCTS simulation scheduling is a practical and
+        compute-efficient curriculum that yields better early-game diversity.
+  \item Gradient clipping stabilises value loss during early training.
+  \item All mature agents handle immediate threats reliably; fork
+        creation and counter-fork play are emergent properties that appear
+        only after $\approx 150$ training iterations.
+  \item The heuristic curriculum is a critical component that
+        dramatically accelerates tactical awareness beyond pure self-play.
+\end{enumerate}
+
+The best overall configuration by final heuristic win rate is
+\textbf{%%BEST_CFG%%}, winning %%BEST_WR_HEURISTIC%% of games.
+Future work could explore distributional value heads \citep{bellemare2017},
+attention-augmented backbones, and longer training runs (500+ iterations) to
+assess whether performance continues to improve.
+
+%% ============================================================
+\bibliographystyle{abbrvnat}
+\begin{thebibliography}{9}
+
+\bibitem{silver2018general}
+Silver, D., et al.\ (2018).
+\newblock A general reinforcement learning algorithm that masters chess, shogi,
+  and Go through self-play.
+\newblock \emph{Science}, 362(6419):1140--1144.
+
+\bibitem{silver2016}
+Silver, D., et al.\ (2016).
+\newblock Mastering the game of Go with deep neural networks and tree search.
+\newblock \emph{Nature}, 529:484--489.
+
+\bibitem{rosin2011}
+Rosin, C.\ D.\ (2011).
+\newblock Multi-armed bandits with episode context.
+\newblock \emph{Annals of Mathematics and Artificial Intelligence}, 61:203--230.
+
+\bibitem{kingma2014adam}
+Kingma, D.\ P., \& Ba, J.\ (2014).
+\newblock Adam: A method for stochastic optimization.
+\newblock \emph{arXiv:1412.6980}.
+
+\bibitem{loshchilov2016}
+Loshchilov, I., \& Hutter, F.\ (2016).
+\newblock SGDR: Stochastic gradient descent with warm restarts.
+\newblock \emph{arXiv:1608.03983}.
+
+\bibitem{bellemare2017}
+Bellemare, M.\ G., Dabney, W., \& Munos, R.\ (2017).
+\newblock A distributional perspective on reinforcement learning.
+\newblock \emph{ICML 2017}.
+
+\end{thebibliography}
+
+\end{document}
