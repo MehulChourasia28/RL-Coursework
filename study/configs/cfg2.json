@@ -3,12 +3,11 @@
   "name": "cfg2",
   "n_iters": 500,
   "games_per_iter": 50,
-  "parallel_games": 4,
   "n_sims_train": 200,
   "n_sims_eval": 100,
   "temp_threshold": 8,
   "c_puct": 1.5,
-  "heuristic_game_rate": 0.3,
+  "heuristic_game_rate": 0.5,
   "train_steps": 300,
   "batch_size": 512,
   "lr": 0.002,
@@ -32,5 +31,5 @@
   "channels": 64,
   "res_blocks": 5,
   "value_fc_hidden": 64,
-  "stop_iter": 250
+  "stop_iter": 200
 }

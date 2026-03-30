@@ -35,7 +35,7 @@ except ImportError:
     _cpp = None  # type: ignore
 
 BOARD_SIZE = 9
-BATCH_SIM  = 8   # leaves batched per NN call (tune for your GPU/model size)
+BATCH_SIM  = 64   # =1 → fully sequential sims, exact parity with original mcts.py
 
 
 class FastMCTS:

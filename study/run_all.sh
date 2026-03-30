@@ -2,6 +2,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Run all 5 study configs sequentially (one finishes before the next starts).
 # Each config gets exclusive GPU access — identical to the original train.py.
+# Existing run directories are backed up with a timestamp before overwriting.
 #
 # Usage (from repo root):
 #   nohup bash study/run_all.sh > study/run_all.log 2>&1 &
@@ -11,18 +12,12 @@
 #
 # Check overall progress:
 #   cat study/run_all.log
-#
-# After all runs complete:
-#   python study/analyze_results.py
-#   python study/strategic_eval.py
-#   python study/eval_tournament.py
-#   python study/generate_report.py
-#   cd study && pdflatex report_final.tex
 # ─────────────────────────────────────────────────────────────────────────────
 
 set -e
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 STUDY_DIR="$REPO_ROOT/study"
+TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 
 echo "========================================================"
 echo "  AlphaZero Gomoku – Sequential Study Runs"
@@ -34,8 +29,15 @@ CONFIGS=("cfg1" "cfg2" "cfg3" "cfg4" "cfg5")
 
 for CFG in "${CONFIGS[@]}"; do
     RUN_DIR="$STUDY_DIR/runs/$CFG"
-    mkdir -p "$RUN_DIR"
     CONFIG_FILE="$STUDY_DIR/configs/$CFG.json"
+
+    # Back up existing run dir before overwriting
+    if [ -d "$RUN_DIR" ]; then
+        BACKUP="$STUDY_DIR/runs/${CFG}_backup_${TIMESTAMP}"
+        mv "$RUN_DIR" "$BACKUP"
+        echo "  Backed up existing $CFG → runs/${CFG}_backup_${TIMESTAMP}"
+    fi
+    mkdir -p "$RUN_DIR"
 
     echo ""
     echo "  ── Starting $CFG at $(date) ──"

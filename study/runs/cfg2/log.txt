@@ -1,0 +1,256 @@
+──────────────────────────────────────────────────────────────────────
+  AlphaZero Gomoku – Study Run: cfg2
+──────────────────────────────────────────────────────────────────────
+{
+  "_comment": "Config 2 \u2013 5-blk 64ch, 200 sims, MultiStep[150,250,350,450] \u03b3=0.5 (gradual 4-step staircase)",
+  "name": "cfg2",
+  "n_iters": 500,
+  "games_per_iter": 50,
+  "n_sims_train": 200,
+  "n_sims_eval": 100,
+  "temp_threshold": 8,
+  "c_puct": 1.5,
+  "heuristic_game_rate": 0.5,
+  "train_steps": 300,
+  "batch_size": 512,
+  "lr": 0.002,
+  "lr_schedule": {
+    "type": "multistep",
+    "milestones": [
+      150,
+      250,
+      350,
+      450
+    ],
+    "gamma": 0.5
+  },
+  "grad_clip": null,
+  "value_loss_weight": 2.0,
+  "buffer_size": 200000,
+  "l2_reg": 0.0001,
+  "eval_freq": 50,
+  "save_freq": 50,
+  "eval_games": 20,
+  "channels": 64,
+  "res_blocks": 5,
+  "value_fc_hidden": 64,
+  "stop_iter": 200
+}
+──────────────────────────────────────────────────────────────────────
+Device : cuda
+Params : 390,490  (5 res-blocks, 64 ch, value-fc 64)
+torch.compile : enabled
+──────────────────────────────────────────────────────────────────────
+  Training for 200/500 iterations  |  games/iter = 50  |  initial sims/move = 200  |  sequential
+──────────────────────────────────────────────────────────────────────
+Iter   1/500 | gameLen= 17.7 | pl=2.6329  vl=0.1273 | buf=  7072 | lr=2.00e-03 | sims=200 | 14s
+Iter   2/500 | gameLen= 17.2 | pl=2.4084  vl=0.1327 | buf= 13968 | lr=2.00e-03 | sims=200 | 25s
+Iter   3/500 | gameLen= 15.9 | pl=2.3870  vl=0.1648 | buf= 20328 | lr=2.00e-03 | sims=200 | 36s
+Iter   4/500 | gameLen= 16.3 | pl=2.4262  vl=0.1655 | buf= 26848 | lr=2.00e-03 | sims=200 | 48s
+Iter   5/500 | gameLen= 16.6 | pl=2.4658  vl=0.1657 | buf= 33496 | lr=2.00e-03 | sims=200 | 59s
+Iter   6/500 | gameLen= 18.6 | pl=2.5673  vl=0.1942 | buf= 40936 | lr=2.00e-03 | sims=200 | 71s
+Iter   7/500 | gameLen= 19.1 | pl=2.6282  vl=0.1980 | buf= 48576 | lr=2.00e-03 | sims=200 | 83s
+Iter   8/500 | gameLen= 16.7 | pl=2.6789  vl=0.2109 | buf= 55256 | lr=2.00e-03 | sims=200 | 94s
+Iter   9/500 | gameLen= 15.0 | pl=2.6823  vl=0.1915 | buf= 61240 | lr=2.00e-03 | sims=200 | 105s
+Iter  10/500 | gameLen= 15.2 | pl=2.7083  vl=0.2028 | buf= 67304 | lr=2.00e-03 | sims=200 | 116s
+Iter  11/500 | gameLen= 14.0 | pl=2.7127  vl=0.2031 | buf= 72888 | lr=2.00e-03 | sims=200 | 126s
+Iter  12/500 | gameLen= 18.2 | pl=2.7814  vl=0.2399 | buf= 80160 | lr=2.00e-03 | sims=200 | 138s
+Iter  13/500 | gameLen= 17.6 | pl=2.8415  vl=0.2389 | buf= 87192 | lr=2.00e-03 | sims=200 | 149s
+Iter  14/500 | gameLen= 15.3 | pl=2.8538  vl=0.2426 | buf= 93296 | lr=2.00e-03 | sims=200 | 160s
+Iter  15/500 | gameLen= 17.3 | pl=2.9013  vl=0.2475 | buf=100216 | lr=2.00e-03 | sims=200 | 172s
+Iter  16/500 | gameLen= 13.0 | pl=2.9138  vl=0.2471 | buf=105432 | lr=2.00e-03 | sims=200 | 182s
+Iter  17/500 | gameLen= 15.7 | pl=2.9404  vl=0.2598 | buf=111720 | lr=2.00e-03 | sims=200 | 193s
+Iter  18/500 | gameLen= 13.1 | pl=2.9335  vl=0.2581 | buf=116944 | lr=2.00e-03 | sims=200 | 203s
+Iter  19/500 | gameLen=  9.7 | pl=2.9477  vl=0.2568 | buf=120840 | lr=2.00e-03 | sims=200 | 212s
+Iter  20/500 | gameLen= 13.8 | pl=2.9656  vl=0.2644 | buf=126344 | lr=2.00e-03 | sims=200 | 223s
+Iter  21/500 | gameLen= 12.5 | pl=2.9728  vl=0.2678 | buf=131328 | lr=2.00e-03 | sims=200 | 233s
+Iter  22/500 | gameLen= 11.4 | pl=2.9681  vl=0.2670 | buf=135872 | lr=2.00e-03 | sims=200 | 242s
+Iter  23/500 | gameLen= 12.5 | pl=2.9753  vl=0.2679 | buf=140864 | lr=2.00e-03 | sims=200 | 253s
+Iter  24/500 | gameLen= 12.8 | pl=2.9852  vl=0.2717 | buf=146000 | lr=2.00e-03 | sims=200 | 263s
+Iter  25/500 | gameLen= 11.2 | pl=2.9908  vl=0.2688 | buf=150472 | lr=2.00e-03 | sims=200 | 272s
+Iter  26/500 | gameLen= 14.0 | pl=3.0196  vl=0.2845 | buf=156088 | lr=2.00e-03 | sims=200 | 283s
+Iter  27/500 | gameLen= 11.6 | pl=3.0261  vl=0.2771 | buf=160712 | lr=2.00e-03 | sims=200 | 292s
+Iter  28/500 | gameLen= 12.1 | pl=3.0286  vl=0.2799 | buf=165536 | lr=2.00e-03 | sims=200 | 302s
+Iter  29/500 | gameLen= 10.4 | pl=3.0367  vl=0.2784 | buf=169696 | lr=2.00e-03 | sims=200 | 311s
+Iter  30/500 | gameLen= 13.6 | pl=3.0421  vl=0.2850 | buf=175120 | lr=2.00e-03 | sims=200 | 322s
+Iter  31/500 | gameLen= 12.3 | pl=3.0471  vl=0.2869 | buf=180024 | lr=2.00e-03 | sims=200 | 332s
+Iter  32/500 | gameLen= 11.2 | pl=3.0714  vl=0.2900 | buf=184504 | lr=2.00e-03 | sims=200 | 341s
+Iter  33/500 | gameLen=  9.3 | pl=3.0651  vl=0.2884 | buf=188240 | lr=2.00e-03 | sims=200 | 350s
+Iter  34/500 | gameLen= 11.1 | pl=3.0633  vl=0.2869 | buf=192664 | lr=2.00e-03 | sims=200 | 360s
+Iter  35/500 | gameLen=  9.9 | pl=3.0602  vl=0.2900 | buf=196640 | lr=2.00e-03 | sims=200 | 369s
+Iter  36/500 | gameLen=  9.5 | pl=3.0633  vl=0.2863 | buf=200000 | lr=2.00e-03 | sims=200 | 379s
+Iter  37/500 | gameLen=  9.8 | pl=3.0716  vl=0.2924 | buf=200000 | lr=2.00e-03 | sims=200 | 388s
+Iter  38/500 | gameLen=  9.9 | pl=3.0635  vl=0.2883 | buf=200000 | lr=2.00e-03 | sims=200 | 397s
+Iter  39/500 | gameLen= 10.0 | pl=3.0736  vl=0.2977 | buf=200000 | lr=2.00e-03 | sims=200 | 406s
+Iter  40/500 | gameLen= 11.4 | pl=3.0695  vl=0.3023 | buf=200000 | lr=2.00e-03 | sims=200 | 416s
+Iter  41/500 | gameLen= 11.1 | pl=3.0658  vl=0.3051 | buf=200000 | lr=2.00e-03 | sims=200 | 425s
+Iter  42/500 | gameLen=  9.9 | pl=3.0625  vl=0.3065 | buf=200000 | lr=2.00e-03 | sims=200 | 435s
+Iter  43/500 | gameLen= 11.1 | pl=3.0526  vl=0.3051 | buf=200000 | lr=2.00e-03 | sims=200 | 445s
+Iter  44/500 | gameLen= 11.4 | pl=3.0452  vl=0.3069 | buf=200000 | lr=2.00e-03 | sims=200 | 455s
+Iter  45/500 | gameLen=  9.5 | pl=3.0393  vl=0.3056 | buf=200000 | lr=2.00e-03 | sims=200 | 464s
+Iter  46/500 | gameLen=  9.5 | pl=3.0336  vl=0.3103 | buf=200000 | lr=2.00e-03 | sims=200 | 473s
+Iter  47/500 | gameLen= 11.3 | pl=3.0196  vl=0.3087 | buf=200000 | lr=2.00e-03 | sims=200 | 483s
+Iter  48/500 | gameLen= 10.7 | pl=3.0128  vl=0.3167 | buf=200000 | lr=2.00e-03 | sims=200 | 492s
+Iter  49/500 | gameLen= 10.7 | pl=2.9995  vl=0.3158 | buf=200000 | lr=2.00e-03 | sims=200 | 501s
+Iter  50/500 | gameLen=  9.1 | pl=2.9968  vl=0.3161 | buf=200000 | lr=2.00e-03 | sims=200 | 511s
+  [eval]  vs random=1.00   vs heuristic=0.00
+  [ckpt]  saved checkpoint_0050.pt
+Iter  51/500 | gameLen= 10.7 | pl=2.9752  vl=0.3178 | buf=200000 | lr=2.00e-03 | sims=200 | 521s
+Iter  52/500 | gameLen= 10.0 | pl=2.9663  vl=0.3164 | buf=200000 | lr=2.00e-03 | sims=200 | 531s
+Iter  53/500 | gameLen=  9.7 | pl=2.9531  vl=0.3228 | buf=200000 | lr=2.00e-03 | sims=200 | 540s
+Iter  54/500 | gameLen=  9.6 | pl=2.9422  vl=0.3181 | buf=200000 | lr=2.00e-03 | sims=200 | 549s
+Iter  55/500 | gameLen= 10.5 | pl=2.9231  vl=0.3272 | buf=200000 | lr=2.00e-03 | sims=200 | 559s
+Iter  56/500 | gameLen=  9.0 | pl=2.9071  vl=0.3187 | buf=200000 | lr=2.00e-03 | sims=200 | 568s
+Iter  57/500 | gameLen=  9.7 | pl=2.8950  vl=0.3234 | buf=200000 | lr=2.00e-03 | sims=200 | 578s
+Iter  58/500 | gameLen=  9.7 | pl=2.8934  vl=0.3242 | buf=200000 | lr=2.00e-03 | sims=200 | 587s
+Iter  59/500 | gameLen= 11.8 | pl=2.8798  vl=0.3233 | buf=200000 | lr=2.00e-03 | sims=200 | 597s
+Iter  60/500 | gameLen= 10.1 | pl=2.8602  vl=0.3249 | buf=200000 | lr=2.00e-03 | sims=200 | 607s
+Iter  61/500 | gameLen= 10.4 | pl=2.8578  vl=0.3247 | buf=200000 | lr=2.00e-03 | sims=200 | 617s
+Iter  62/500 | gameLen=  8.8 | pl=2.8452  vl=0.3243 | buf=200000 | lr=2.00e-03 | sims=200 | 626s
+Iter  63/500 | gameLen= 10.6 | pl=2.8355  vl=0.3272 | buf=200000 | lr=2.00e-03 | sims=200 | 636s
+Iter  64/500 | gameLen= 10.6 | pl=2.8221  vl=0.3246 | buf=200000 | lr=2.00e-03 | sims=200 | 645s
+Iter  65/500 | gameLen= 10.0 | pl=2.8047  vl=0.3227 | buf=200000 | lr=2.00e-03 | sims=200 | 655s
+Iter  66/500 | gameLen= 10.2 | pl=2.7964  vl=0.3268 | buf=200000 | lr=2.00e-03 | sims=200 | 665s
+Iter  67/500 | gameLen= 11.2 | pl=2.7885  vl=0.3314 | buf=200000 | lr=2.00e-03 | sims=200 | 675s
+Iter  68/500 | gameLen= 11.4 | pl=2.7740  vl=0.3340 | buf=200000 | lr=2.00e-03 | sims=200 | 685s
+Iter  69/500 | gameLen=  9.8 | pl=2.7691  vl=0.3363 | buf=200000 | lr=2.00e-03 | sims=200 | 694s
+Iter  70/500 | gameLen=  9.8 | pl=2.7584  vl=0.3298 | buf=200000 | lr=2.00e-03 | sims=200 | 704s
+Iter  71/500 | gameLen=  9.9 | pl=2.7469  vl=0.3298 | buf=200000 | lr=2.00e-03 | sims=200 | 713s
+Iter  72/500 | gameLen= 12.2 | pl=2.7334  vl=0.3337 | buf=200000 | lr=2.00e-03 | sims=200 | 723s
+Iter  73/500 | gameLen= 10.2 | pl=2.7262  vl=0.3299 | buf=200000 | lr=2.00e-03 | sims=200 | 732s
+Iter  74/500 | gameLen= 10.1 | pl=2.7034  vl=0.3321 | buf=200000 | lr=2.00e-03 | sims=200 | 742s
+Iter  75/500 | gameLen= 10.5 | pl=2.6914  vl=0.3340 | buf=200000 | lr=2.00e-03 | sims=200 | 751s
+Iter  76/500 | gameLen= 10.2 | pl=2.6856  vl=0.3315 | buf=200000 | lr=2.00e-03 | sims=200 | 760s
+Iter  77/500 | gameLen= 10.1 | pl=2.6717  vl=0.3312 | buf=200000 | lr=2.00e-03 | sims=200 | 769s
+Iter  78/500 | gameLen= 12.0 | pl=2.6619  vl=0.3302 | buf=200000 | lr=2.00e-03 | sims=200 | 779s
+Iter  79/500 | gameLen=  9.8 | pl=2.6518  vl=0.3319 | buf=200000 | lr=2.00e-03 | sims=200 | 789s
+Iter  80/500 | gameLen=  9.9 | pl=2.6319  vl=0.3301 | buf=200000 | lr=2.00e-03 | sims=200 | 799s
+Iter  81/500 | gameLen=  9.6 | pl=2.6194  vl=0.3289 | buf=200000 | lr=2.00e-03 | sims=200 | 808s
+Iter  82/500 | gameLen= 10.6 | pl=2.6029  vl=0.3348 | buf=200000 | lr=2.00e-03 | sims=200 | 818s
+Iter  83/500 | gameLen= 10.5 | pl=2.6030  vl=0.3347 | buf=200000 | lr=2.00e-03 | sims=200 | 827s
+Iter  84/500 | gameLen= 10.4 | pl=2.5901  vl=0.3363 | buf=200000 | lr=2.00e-03 | sims=200 | 836s
+Iter  85/500 | gameLen=  9.8 | pl=2.5736  vl=0.3315 | buf=200000 | lr=2.00e-03 | sims=200 | 845s
+Iter  86/500 | gameLen=  9.1 | pl=2.5622  vl=0.3350 | buf=200000 | lr=2.00e-03 | sims=200 | 855s
+Iter  87/500 | gameLen=  9.3 | pl=2.5562  vl=0.3371 | buf=200000 | lr=2.00e-03 | sims=200 | 864s
+Iter  88/500 | gameLen= 10.6 | pl=2.5378  vl=0.3336 | buf=200000 | lr=2.00e-03 | sims=200 | 874s
+Iter  89/500 | gameLen= 10.3 | pl=2.5221  vl=0.3346 | buf=200000 | lr=2.00e-03 | sims=200 | 883s
+Iter  90/500 | gameLen= 10.0 | pl=2.5208  vl=0.3337 | buf=200000 | lr=2.00e-03 | sims=200 | 893s
+Iter  91/500 | gameLen=  8.8 | pl=2.5109  vl=0.3344 | buf=200000 | lr=2.00e-03 | sims=200 | 902s
+Iter  92/500 | gameLen= 12.4 | pl=2.5050  vl=0.3482 | buf=200000 | lr=2.00e-03 | sims=200 | 912s
+Iter  93/500 | gameLen= 10.9 | pl=2.4876  vl=0.3408 | buf=200000 | lr=2.00e-03 | sims=200 | 922s
+Iter  94/500 | gameLen= 10.4 | pl=2.4733  vl=0.3434 | buf=200000 | lr=2.00e-03 | sims=200 | 932s
+Iter  95/500 | gameLen= 12.5 | pl=2.4678  vl=0.3468 | buf=200000 | lr=2.00e-03 | sims=200 | 942s
+Iter  96/500 | gameLen= 10.4 | pl=2.4598  vl=0.3391 | buf=200000 | lr=2.00e-03 | sims=200 | 951s
+Iter  97/500 | gameLen= 10.6 | pl=2.4494  vl=0.3438 | buf=200000 | lr=2.00e-03 | sims=200 | 961s
+Iter  98/500 | gameLen= 10.9 | pl=2.4456  vl=0.3466 | buf=200000 | lr=2.00e-03 | sims=200 | 971s
+Iter  99/500 | gameLen= 10.6 | pl=2.4408  vl=0.3496 | buf=200000 | lr=2.00e-03 | sims=200 | 980s
+Iter 100/500 | gameLen=  9.3 | pl=2.4282  vl=0.3453 | buf=200000 | lr=2.00e-03 | sims=200 | 989s
+  [eval]  vs random=1.00   vs heuristic=0.00
+  [ckpt]  saved checkpoint_0100.pt
+Iter 101/500 | gameLen= 12.5 | pl=2.4141  vl=0.3502 | buf=200000 | lr=2.00e-03 | sims=200 | 1000s
+Iter 102/500 | gameLen= 10.2 | pl=2.4058  vl=0.3445 | buf=200000 | lr=2.00e-03 | sims=200 | 1009s
+Iter 103/500 | gameLen= 10.9 | pl=2.4069  vl=0.3422 | buf=200000 | lr=2.00e-03 | sims=200 | 1018s
+Iter 104/500 | gameLen=  9.6 | pl=2.3961  vl=0.3379 | buf=200000 | lr=2.00e-03 | sims=200 | 1028s
+Iter 105/500 | gameLen=  9.8 | pl=2.3851  vl=0.3419 | buf=200000 | lr=2.00e-03 | sims=200 | 1040s
+Iter 106/500 | gameLen= 10.6 | pl=2.3752  vl=0.3397 | buf=200000 | lr=2.00e-03 | sims=200 | 1050s
+Iter 107/500 | gameLen= 10.5 | pl=2.3699  vl=0.3461 | buf=200000 | lr=2.00e-03 | sims=200 | 1060s
+Iter 108/500 | gameLen= 10.2 | pl=2.3645  vl=0.3404 | buf=200000 | lr=2.00e-03 | sims=200 | 1069s
+Iter 109/500 | gameLen=  9.2 | pl=2.3582  vl=0.3376 | buf=200000 | lr=2.00e-03 | sims=200 | 1077s
+Iter 110/500 | gameLen= 10.2 | pl=2.3494  vl=0.3422 | buf=200000 | lr=2.00e-03 | sims=200 | 1087s
+Iter 111/500 | gameLen=  9.6 | pl=2.3343  vl=0.3377 | buf=200000 | lr=2.00e-03 | sims=200 | 1095s
+Iter 112/500 | gameLen=  9.2 | pl=2.3352  vl=0.3321 | buf=200000 | lr=2.00e-03 | sims=200 | 1104s
+Iter 113/500 | gameLen= 10.2 | pl=2.3326  vl=0.3385 | buf=200000 | lr=2.00e-03 | sims=200 | 1113s
+Iter 114/500 | gameLen=  9.9 | pl=2.3234  vl=0.3395 | buf=200000 | lr=2.00e-03 | sims=200 | 1123s
+Iter 115/500 | gameLen= 10.9 | pl=2.3155  vl=0.3369 | buf=200000 | lr=2.00e-03 | sims=200 | 1132s
+Iter 116/500 | gameLen= 11.1 | pl=2.3181  vl=0.3317 | buf=200000 | lr=2.00e-03 | sims=200 | 1142s
+Iter 117/500 | gameLen= 10.6 | pl=2.3072  vl=0.3322 | buf=200000 | lr=2.00e-03 | sims=200 | 1151s
+Iter 118/500 | gameLen= 10.5 | pl=2.3055  vl=0.3338 | buf=200000 | lr=2.00e-03 | sims=200 | 1160s
+Iter 119/500 | gameLen=  9.6 | pl=2.3025  vl=0.3318 | buf=200000 | lr=2.00e-03 | sims=200 | 1169s
+Iter 120/500 | gameLen=  9.9 | pl=2.3076  vl=0.3275 | buf=200000 | lr=2.00e-03 | sims=200 | 1178s
+Iter 121/500 | gameLen= 10.3 | pl=2.3051  vl=0.3322 | buf=200000 | lr=2.00e-03 | sims=200 | 1187s
+Iter 122/500 | gameLen=  9.9 | pl=2.2956  vl=0.3342 | buf=200000 | lr=2.00e-03 | sims=200 | 1196s
+Iter 123/500 | gameLen=  9.5 | pl=2.2944  vl=0.3352 | buf=200000 | lr=2.00e-03 | sims=200 | 1205s
+Iter 124/500 | gameLen= 11.6 | pl=2.2936  vl=0.3308 | buf=200000 | lr=2.00e-03 | sims=200 | 1215s
+Iter 125/500 | gameLen=  9.6 | pl=2.2916  vl=0.3303 | buf=200000 | lr=2.00e-03 | sims=200 | 1224s
+Iter 126/500 | gameLen=  9.7 | pl=2.2809  vl=0.3361 | buf=200000 | lr=2.00e-03 | sims=200 | 1233s
+Iter 127/500 | gameLen=  9.8 | pl=2.2827  vl=0.3354 | buf=200000 | lr=2.00e-03 | sims=200 | 1242s
+Iter 128/500 | gameLen=  9.4 | pl=2.2840  vl=0.3294 | buf=200000 | lr=2.00e-03 | sims=200 | 1251s
+Iter 129/500 | gameLen=  9.9 | pl=2.2729  vl=0.3327 | buf=200000 | lr=2.00e-03 | sims=200 | 1260s
+Iter 130/500 | gameLen= 11.2 | pl=2.2664  vl=0.3277 | buf=200000 | lr=2.00e-03 | sims=200 | 1269s
+Iter 131/500 | gameLen=  9.6 | pl=2.2651  vl=0.3274 | buf=200000 | lr=2.00e-03 | sims=200 | 1278s
+Iter 132/500 | gameLen=  9.9 | pl=2.2606  vl=0.3276 | buf=200000 | lr=2.00e-03 | sims=200 | 1287s
+Iter 133/500 | gameLen= 11.5 | pl=2.2644  vl=0.3295 | buf=200000 | lr=2.00e-03 | sims=200 | 1297s
+Iter 134/500 | gameLen= 10.6 | pl=2.2509  vl=0.3233 | buf=200000 | lr=2.00e-03 | sims=200 | 1307s
+Iter 135/500 | gameLen= 10.0 | pl=2.2505  vl=0.3223 | buf=200000 | lr=2.00e-03 | sims=200 | 1316s
+Iter 136/500 | gameLen=  9.8 | pl=2.2482  vl=0.3194 | buf=200000 | lr=2.00e-03 | sims=200 | 1325s
+Iter 137/500 | gameLen= 10.1 | pl=2.2366  vl=0.3226 | buf=200000 | lr=2.00e-03 | sims=200 | 1335s
+Iter 138/500 | gameLen= 11.2 | pl=2.2390  vl=0.3190 | buf=200000 | lr=2.00e-03 | sims=200 | 1345s
+Iter 139/500 | gameLen= 10.4 | pl=2.2311  vl=0.3199 | buf=200000 | lr=2.00e-03 | sims=200 | 1354s
+Iter 140/500 | gameLen= 11.7 | pl=2.2257  vl=0.3204 | buf=200000 | lr=2.00e-03 | sims=200 | 1363s
+Iter 141/500 | gameLen= 10.9 | pl=2.2229  vl=0.3193 | buf=200000 | lr=2.00e-03 | sims=200 | 1373s
+Iter 142/500 | gameLen= 11.8 | pl=2.2306  vl=0.3262 | buf=200000 | lr=2.00e-03 | sims=200 | 1382s
+Iter 143/500 | gameLen= 11.3 | pl=2.2185  vl=0.3207 | buf=200000 | lr=2.00e-03 | sims=200 | 1392s
+Iter 144/500 | gameLen= 10.0 | pl=2.2101  vl=0.3146 | buf=200000 | lr=2.00e-03 | sims=200 | 1401s
+Iter 145/500 | gameLen= 10.2 | pl=2.2079  vl=0.3161 | buf=200000 | lr=2.00e-03 | sims=200 | 1410s
+Iter 146/500 | gameLen=  9.9 | pl=2.2106  vl=0.3234 | buf=200000 | lr=2.00e-03 | sims=200 | 1419s
+Iter 147/500 | gameLen= 11.2 | pl=2.2163  vl=0.3196 | buf=200000 | lr=2.00e-03 | sims=200 | 1429s
+Iter 148/500 | gameLen=  9.8 | pl=2.2068  vl=0.3140 | buf=200000 | lr=2.00e-03 | sims=200 | 1439s
+Iter 149/500 | gameLen= 10.5 | pl=2.2010  vl=0.3116 | buf=200000 | lr=2.00e-03 | sims=200 | 1448s
+Iter 150/500 | gameLen= 10.5 | pl=2.2038  vl=0.3108 | buf=200000 | lr=1.00e-03 | sims=200 | 1457s
+  [eval]  vs random=1.00   vs heuristic=0.00
+  [ckpt]  saved checkpoint_0150.pt
+Iter 151/500 | gameLen= 10.7 | pl=2.1286  vl=0.2997 | buf=200000 | lr=1.00e-03 | sims=200 | 1468s
+Iter 152/500 | gameLen= 10.8 | pl=2.0943  vl=0.2893 | buf=200000 | lr=1.00e-03 | sims=200 | 1478s
+Iter 153/500 | gameLen= 10.3 | pl=2.0693  vl=0.2843 | buf=200000 | lr=1.00e-03 | sims=200 | 1488s
+Iter 154/500 | gameLen= 11.3 | pl=2.0668  vl=0.2877 | buf=200000 | lr=1.00e-03 | sims=200 | 1498s
+Iter 155/500 | gameLen= 11.0 | pl=2.0655  vl=0.2826 | buf=200000 | lr=1.00e-03 | sims=200 | 1507s
+Iter 156/500 | gameLen=  9.7 | pl=2.0422  vl=0.2800 | buf=200000 | lr=1.00e-03 | sims=200 | 1517s
+Iter 157/500 | gameLen= 11.7 | pl=2.0364  vl=0.2871 | buf=200000 | lr=1.00e-03 | sims=200 | 1527s
+Iter 158/500 | gameLen= 10.7 | pl=2.0307  vl=0.2891 | buf=200000 | lr=1.00e-03 | sims=200 | 1536s
+Iter 159/500 | gameLen= 11.2 | pl=2.0373  vl=0.2833 | buf=200000 | lr=1.00e-03 | sims=200 | 1546s
+Iter 160/500 | gameLen=  9.5 | pl=2.0206  vl=0.2804 | buf=200000 | lr=1.00e-03 | sims=200 | 1554s
+Iter 161/500 | gameLen= 11.2 | pl=2.0205  vl=0.2769 | buf=200000 | lr=1.00e-03 | sims=200 | 1564s
+Iter 162/500 | gameLen= 10.1 | pl=2.0064  vl=0.2767 | buf=200000 | lr=1.00e-03 | sims=200 | 1573s
+Iter 163/500 | gameLen=  9.4 | pl=1.9976  vl=0.2763 | buf=200000 | lr=1.00e-03 | sims=200 | 1582s
+Iter 164/500 | gameLen=  9.4 | pl=1.9954  vl=0.2766 | buf=200000 | lr=1.00e-03 | sims=200 | 1594s
+Iter 165/500 | gameLen= 11.7 | pl=2.0056  vl=0.2833 | buf=200000 | lr=1.00e-03 | sims=200 | 1604s
+Iter 166/500 | gameLen= 10.9 | pl=1.9900  vl=0.2794 | buf=200000 | lr=1.00e-03 | sims=200 | 1614s
+Iter 167/500 | gameLen= 10.5 | pl=1.9865  vl=0.2735 | buf=200000 | lr=1.00e-03 | sims=200 | 1623s
+Iter 168/500 | gameLen= 10.5 | pl=1.9818  vl=0.2781 | buf=200000 | lr=1.00e-03 | sims=200 | 1633s
+Iter 169/500 | gameLen= 10.7 | pl=1.9858  vl=0.2779 | buf=200000 | lr=1.00e-03 | sims=200 | 1642s
+Iter 170/500 | gameLen= 10.7 | pl=1.9710  vl=0.2792 | buf=200000 | lr=1.00e-03 | sims=200 | 1652s
+Iter 171/500 | gameLen= 10.5 | pl=1.9802  vl=0.2786 | buf=200000 | lr=1.00e-03 | sims=200 | 1661s
+Iter 172/500 | gameLen= 10.5 | pl=1.9802  vl=0.2719 | buf=200000 | lr=1.00e-03 | sims=200 | 1670s
+Iter 173/500 | gameLen=  9.7 | pl=1.9719  vl=0.2751 | buf=200000 | lr=1.00e-03 | sims=200 | 1680s
+Iter 174/500 | gameLen=  9.8 | pl=1.9760  vl=0.2668 | buf=200000 | lr=1.00e-03 | sims=200 | 1688s
+Iter 175/500 | gameLen= 10.3 | pl=1.9679  vl=0.2702 | buf=200000 | lr=1.00e-03 | sims=200 | 1698s
+Iter 176/500 | gameLen=  9.8 | pl=1.9686  vl=0.2650 | buf=200000 | lr=1.00e-03 | sims=200 | 1707s
+Iter 177/500 | gameLen= 10.9 | pl=1.9682  vl=0.2650 | buf=200000 | lr=1.00e-03 | sims=200 | 1716s
+Iter 178/500 | gameLen=  9.7 | pl=1.9532  vl=0.2634 | buf=200000 | lr=1.00e-03 | sims=200 | 1725s
+Iter 179/500 | gameLen=  9.6 | pl=1.9587  vl=0.2596 | buf=200000 | lr=1.00e-03 | sims=200 | 1734s
+Iter 180/500 | gameLen= 10.3 | pl=1.9583  vl=0.2587 | buf=200000 | lr=1.00e-03 | sims=200 | 1744s
+Iter 181/500 | gameLen=  9.5 | pl=1.9552  vl=0.2551 | buf=200000 | lr=1.00e-03 | sims=200 | 1753s
+Iter 182/500 | gameLen= 10.2 | pl=1.9644  vl=0.2556 | buf=200000 | lr=1.00e-03 | sims=200 | 1762s
+Iter 183/500 | gameLen= 11.4 | pl=1.9730  vl=0.2543 | buf=200000 | lr=1.00e-03 | sims=200 | 1772s
+Iter 184/500 | gameLen=  9.7 | pl=1.9600  vl=0.2579 | buf=200000 | lr=1.00e-03 | sims=200 | 1781s
+Iter 185/500 | gameLen=  9.8 | pl=1.9606  vl=0.2603 | buf=200000 | lr=1.00e-03 | sims=200 | 1791s
+Iter 186/500 | gameLen=  9.1 | pl=1.9570  vl=0.2616 | buf=200000 | lr=1.00e-03 | sims=200 | 1800s
+Iter 187/500 | gameLen= 10.1 | pl=1.9554  vl=0.2583 | buf=200000 | lr=1.00e-03 | sims=200 | 1809s
+Iter 188/500 | gameLen= 11.0 | pl=1.9781  vl=0.2542 | buf=200000 | lr=1.00e-03 | sims=200 | 1819s
+Iter 189/500 | gameLen=  9.1 | pl=1.9704  vl=0.2517 | buf=200000 | lr=1.00e-03 | sims=200 | 1828s
+Iter 190/500 | gameLen= 10.9 | pl=1.9754  vl=0.2563 | buf=200000 | lr=1.00e-03 | sims=200 | 1838s
+Iter 191/500 | gameLen= 12.1 | pl=1.9911  vl=0.2604 | buf=200000 | lr=1.00e-03 | sims=200 | 1848s
+Iter 192/500 | gameLen= 10.2 | pl=1.9820  vl=0.2551 | buf=200000 | lr=1.00e-03 | sims=200 | 1857s
+Iter 193/500 | gameLen= 10.1 | pl=1.9919  vl=0.2525 | buf=200000 | lr=1.00e-03 | sims=200 | 1866s
+Iter 194/500 | gameLen=  9.3 | pl=1.9824  vl=0.2504 | buf=200000 | lr=1.00e-03 | sims=200 | 1875s
+Iter 195/500 | gameLen= 10.0 | pl=1.9807  vl=0.2499 | buf=200000 | lr=1.00e-03 | sims=200 | 1885s
+Iter 196/500 | gameLen=  9.9 | pl=1.9839  vl=0.2470 | buf=200000 | lr=1.00e-03 | sims=200 | 1894s
+Iter 197/500 | gameLen=  9.8 | pl=1.9793  vl=0.2481 | buf=200000 | lr=1.00e-03 | sims=200 | 1904s
+Iter 198/500 | gameLen= 10.9 | pl=1.9921  vl=0.2517 | buf=200000 | lr=1.00e-03 | sims=200 | 1913s
+Iter 199/500 | gameLen=  9.2 | pl=1.9905  vl=0.2474 | buf=200000 | lr=1.00e-03 | sims=200 | 1923s
+Iter 200/500 | gameLen=  9.9 | pl=1.9815  vl=0.2460 | buf=200000 | lr=1.00e-03 | sims=200 | 1932s
+  [eval]  vs random=1.00   vs heuristic=0.25
+  [ckpt]  saved checkpoint_0200.pt
+──────────────────────────────────────────────────────────────────────
+  Done.  Total time: 0.54h
+──────────────────────────────────────────────────────────────────────
